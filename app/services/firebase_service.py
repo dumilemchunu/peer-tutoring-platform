@@ -1872,3 +1872,74 @@ class FirebaseService:
         except Exception as e:
             print(f"Error seeding bookings: {str(e)}")
             return False 
+
+    def get_system_statistics(self):
+        """Return system statistics for admin dashboard"""
+        try:
+            if self.demo_mode or not self._ensure_db():
+                # Return demo statistics
+                return {
+                    'total_users': 15,
+                    'total_students': 10,
+                    'total_tutors': 4,
+                    'total_admins': 1,
+                    'total_sessions': 23,
+                    'total_modules': 12,
+                    'active_users': 8
+                }
+            
+            # If we have a valid database connection, fetch real statistics
+            stats = {}
+            
+            # Count users by role
+            users_ref = self.db.collection('users')
+            all_users = list(users_ref.stream())
+            stats['total_users'] = len(all_users)
+            
+            # Count by role
+            users_by_role = {'student': 0, 'tutor': 0, 'admin': 0}
+            for user in all_users:
+                user_data = user.to_dict()
+                role = user_data.get('role', 'unknown')
+                if role in users_by_role:
+                    users_by_role[role] += 1
+            
+            stats['total_students'] = users_by_role['student']
+            stats['total_tutors'] = users_by_role['tutor']
+            stats['total_admins'] = users_by_role['admin']
+            
+            # Count sessions
+            sessions_ref = self.db.collection('sessions')
+            stats['total_sessions'] = len(list(sessions_ref.stream()))
+            
+            # Count modules
+            modules_ref = self.db.collection('modules')
+            stats['total_modules'] = len(list(modules_ref.stream()))
+            
+            # Estimate active users (sessions in the last 30 days)
+            thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
+            recent_sessions = list(sessions_ref.where('created_at', '>=', thirty_days_ago).stream())
+            active_user_ids = set()
+            for session in recent_sessions:
+                session_data = session.to_dict()
+                if 'student_id' in session_data:
+                    active_user_ids.add(session_data['student_id'])
+                if 'tutor_id' in session_data:
+                    active_user_ids.add(session_data['tutor_id'])
+            
+            stats['active_users'] = len(active_user_ids)
+            
+            return stats
+            
+        except Exception as e:
+            print(f"Error fetching system statistics: {str(e)}")
+            # Return default demo statistics on error
+            return {
+                'total_users': 15,
+                'total_students': 10,
+                'total_tutors': 4,
+                'total_admins': 1,
+                'total_sessions': 23, 
+                'total_modules': 12,
+                'active_users': 8
+            } 
