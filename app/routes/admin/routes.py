@@ -4,7 +4,7 @@ from app.models import User
 from app.services.firebase_service import FirebaseService
 from firebase_admin import auth, firestore
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone
 
 admin_bp = Blueprint('admin', __name__)
 firebase_service = FirebaseService()
@@ -13,8 +13,8 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != 'admin':
-            flash('You do not have permission to access this page.', 'danger')
-            return redirect(url_for('auth.sign_in'))
+            flash('You do not have permission to access this page.', 'error')
+            return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -131,24 +131,9 @@ def users():
         users_data = firebase_service.get_all_users()
         print(f"Retrieved {len(users_data)} users from Firebase")
         
-        # Process users for display
-        for user in users_data:
-            # Format timestamps
-            if user.get('created_at'):
-                if isinstance(user['created_at'], datetime):
-                    user['created_at'] = user['created_at'].strftime('%Y-%m-%d %H:%M:%S')
-            else:
-                user['created_at'] = 'N/A'
-                
-            # Ensure role is displayed properly
-            user['role'] = user.get('role', 'student').capitalize()
-            
-            # Format verification status
-            user['is_verified'] = 'Yes' if user.get('is_verified', False) else 'No'
-            
-            # Handle missing fields
-            user.setdefault('student_number', 'N/A')
-            user.setdefault('staff_number', 'N/A')
+        if not users_data:
+            flash('No users found.', 'warning')
+            return render_template('admin/users.html', users=[])
             
         return render_template('admin/users.html', users=users_data)
         
@@ -163,72 +148,36 @@ def users():
 @login_required
 @admin_required
 def view_user(user_id):
-    if not current_user.is_admin:
-        flash('Access denied. You must be an administrator to view this page.', 'error')
-        return redirect(url_for('main.index'))
-    
-    user = firebase_service.get_user_by_id(user_id)
-    if not user:
-        flash('User not found.', 'error')
+    """View user details"""
+    try:
+        user = firebase_service.get_user_by_id(user_id)
+        if not user:
+            flash('User not found.', 'error')
+            return redirect(url_for('admin.users'))
+        return render_template('admin/view_user.html', user=user)
+    except Exception as e:
+        print(f"Error viewing user: {str(e)}")
+        flash('Error loading user details.', 'error')
         return redirect(url_for('admin.users'))
-    
-    return render_template('admin/view_user.html', user=user)
 
 @admin_bp.route('/users/<user_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def edit_user(user_id):
-    if not current_user.is_admin:
-        flash('Access denied. You must be an administrator to view this page.', 'error')
-        return redirect(url_for('main.index'))
-    
-    user = firebase_service.get_user_by_id(user_id)
-    if not user:
-        flash('User not found.', 'error')
+    """Edit user details"""
+    try:
+        if request.method == 'GET':
+            user = firebase_service.get_user_by_id(user_id)
+            if not user:
+                flash('User not found.', 'error')
+                return redirect(url_for('admin.users'))
+            return render_template('admin/edit_user.html', user=user)
+        # Handle POST request here when implementing edit functionality
         return redirect(url_for('admin.users'))
-    
-    if request.method == 'POST':
-        # Get form data
-        name = request.form.get('name')
-        email = request.form.get('email')
-        role = request.form.get('role')
-        is_verified = 'is_verified' in request.form
-        
-        # Handle student/staff number based on role
-        student_number = None
-        staff_number = None
-        
-        if role == 'student':
-            student_number = request.form.get('student_number')
-        elif role == 'tutor':
-            staff_number = request.form.get('staff_number')
-        
-        # Prepare update data
-        update_data = {
-            'name': name,
-            'email': email,
-            'role': role,
-            'is_verified': is_verified,
-            'student_number': student_number,
-            'staff_number': staff_number
-        }
-        
-        try:
-            # Update user in Firestore
-            firebase_service.update_user(user_id, update_data)
-            
-            # Update email in Firebase Auth if changed
-            if email != user['email']:
-                auth.update_user(user_id, email=email, display_name=name)
-            else:
-                auth.update_user(user_id, display_name=name)
-                
-            flash('User updated successfully.', 'success')
-            return redirect(url_for('admin.users'))
-        except Exception as e:
-            flash(f'Error updating user: {str(e)}', 'error')
-    
-    return render_template('admin/edit_user.html', user=user)
+    except Exception as e:
+        print(f"Error editing user: {str(e)}")
+        flash('Error loading user details.', 'error')
+        return redirect(url_for('admin.users'))
 
 @admin_bp.route('/users/<user_id>/delete', methods=['POST'])
 @login_required

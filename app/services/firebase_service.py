@@ -1,11 +1,13 @@
+import os
+from datetime import datetime, timezone
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth, initialize_app
+from google.cloud.firestore import Client as FirestoreClient
 from datetime import datetime, timedelta, timezone
 import uuid
 import base64
 from app.utils.date_utils import parse_date
 from typing import Dict, List, Optional, Tuple, Any
-import os
 import pytz
 
 class FirebaseService:
@@ -19,42 +21,31 @@ class FirebaseService:
     
     def __init__(self):
         if not FirebaseService._initialized:
+            print("Initializing Firebase Admin SDK...")
             try:
-                print("Initializing Firebase Admin SDK...")
+                # Try to get existing app
+                self.app = firebase_admin.get_app()
+                print("Firebase already initialized, reusing existing app")
+            except ValueError:
                 print("Initializing Firebase with credentials from environment variables...")
-                
-                # Create credentials dictionary with explicit type field
-                cred_dict = {
+                # Initialize new app
+                cred = credentials.Certificate({
                     "type": "service_account",
-                    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
-                    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-                    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
-                    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
-                    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+                    "project_id": os.getenv('FIREBASE_PROJECT_ID'),
+                    "private_key_id": os.getenv('FIREBASE_PRIVATE_KEY_ID'),
+                    "private_key": os.getenv('FIREBASE_PRIVATE_KEY').replace('\\n', '\n'),
+                    "client_email": os.getenv('FIREBASE_CLIENT_EMAIL'),
+                    "client_id": os.getenv('FIREBASE_CLIENT_ID'),
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL")
-                }
-
-                # Check if Firebase is already initialized
-                try:
-                    self.app = firebase_admin.get_app()
-                    print("Firebase already initialized, reusing existing app")
-                except ValueError:
-                    # Initialize Firebase only if it's not already initialized
-                    cred = credentials.Certificate(cred_dict)
-                    self.app = firebase_admin.initialize_app(cred)
-                    print("Firebase Admin SDK initialized successfully")
-
-                # Initialize Firestore client
-                self.db = firestore.client()
-                print("Firestore client initialized successfully")
-                FirebaseService._initialized = True
-
-            except Exception as e:
-                print(f"Error initializing Firebase: {str(e)}")
-                raise
+                    "client_x509_cert_url": os.getenv('FIREBASE_CLIENT_CERT_URL')
+                })
+                self.app = initialize_app(cred)
+                
+            self.db = firestore.client()
+            print("Firestore client initialized successfully")
+            FirebaseService._initialized = True
 
     def _ensure_db(self):
         """Ensure database connection is available"""
@@ -1497,8 +1488,8 @@ class FirebaseService:
             users_ref = self.db.collection('users')
             
             # Get all users
-            docs = users_ref.stream()
-            print("Successfully connected to users collection")
+            docs = list(users_ref.stream())  # Convert to list to catch potential stream errors
+            print(f"Successfully connected to users collection. Found {len(docs)} documents.")
             
             for doc in docs:
                 try:
@@ -1516,31 +1507,44 @@ class FirebaseService:
                     user_data.setdefault('email', 'No email')
                     user_data.setdefault('role', 'student')
                     user_data.setdefault('is_verified', False)
-                    user_data.setdefault('student_number', '')
-                    user_data.setdefault('staff_number', '')
+                    user_data.setdefault('student_number', 'N/A')
+                    user_data.setdefault('staff_number', 'N/A')
                     
                     # Handle created_at timestamp
-                    if 'created_at' not in user_data or not user_data['created_at']:
-                        user_data['created_at'] = datetime.now()
-                    elif isinstance(user_data['created_at'], (firestore.SERVER_TIMESTAMP.__class__, type(None))):
-                        user_data['created_at'] = datetime.now()
-                    elif hasattr(user_data['created_at'], 'datetime'):
-                        user_data['created_at'] = user_data['created_at'].datetime()
+                    created_at = user_data.get('created_at')
+                    if not created_at:
+                        user_data['created_at'] = datetime.now(timezone.utc)
+                    elif isinstance(created_at, (firestore.SERVER_TIMESTAMP.__class__, type(None))):
+                        user_data['created_at'] = datetime.now(timezone.utc)
+                    elif hasattr(created_at, 'timestamp'):
+                        # Convert to datetime if it's a Firestore timestamp
+                        user_data['created_at'] = datetime.fromtimestamp(created_at.timestamp(), tz=timezone.utc)
                     
-                    # Add additional fields for tutors
-                    if user_data.get('role') == 'tutor':
-                        user_data.setdefault('approved_modules', [])
-                        user_data.setdefault('qualifications', '')
-                        user_data.setdefault('tutor_since', None)
+                    # Format the datetime for display
+                    if isinstance(user_data['created_at'], datetime):
+                        user_data['created_at'] = user_data['created_at'].strftime('%Y-%m-%d %H:%M:%S UTC')
+                    
+                    # Ensure role is properly formatted
+                    user_data['role'] = user_data['role'].capitalize()
+                    
+                    # Format verification status
+                    user_data['is_verified'] = 'Yes' if user_data['is_verified'] else 'No'
                     
                     print(f"Successfully processed user: {user_data.get('email', 'No email')}")
                     users.append(user_data)
                 except Exception as e:
                     print(f"Error processing user document {doc.id}: {str(e)}")
+                    import traceback
+                    print(traceback.format_exc())
                     continue
             
             # Sort users by creation date (newest first)
-            users.sort(key=lambda x: x.get('created_at', datetime.min), reverse=True)
+            users.sort(
+                key=lambda x: datetime.strptime(x['created_at'], '%Y-%m-%d %H:%M:%S UTC') 
+                if isinstance(x['created_at'], str) else datetime.now(timezone.utc),
+                reverse=True
+            )
+            
             print(f"Successfully retrieved {len(users)} users from database")
             return users
             

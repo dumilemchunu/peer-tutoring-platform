@@ -31,26 +31,26 @@
                         {% if users %}
                             {% for user in users %}
                                 <tr>
-                                    <td>{{ user.name }}</td>
-                                    <td>{{ user.email }}</td>
-                                    <td>{{ user.role }}</td>
+                                    <td>{{ user.get('name', 'Unknown') }}</td>
+                                    <td>{{ user.get('email', 'No email') }}</td>
+                                    <td>{{ user.get('role', 'Unknown') }}</td>
                                     <td>
-                                        {% if user.role == 'Student' %}
-                                            {{ user.student_number }}
+                                        {% if user.get('role', '').lower() == 'student' %}
+                                            {{ user.get('student_number', 'N/A') }}
                                         {% else %}
-                                            {{ user.staff_number }}
+                                            {{ user.get('staff_number', 'N/A') }}
                                         {% endif %}
                                     </td>
-                                    <td>{{ user.is_verified }}</td>
-                                    <td>{{ user.created_at }}</td>
+                                    <td>{{ user.get('is_verified', 'No') }}</td>
+                                    <td>{{ user.get('created_at', 'Unknown') }}</td>
                                     <td>
                                         <div class="btn-group">
-                                            <a href="{{ url_for('admin.view_user', user_id=user.id) }}" 
+                                            <a href="{{ url_for('admin.view_user', user_id=user.get('id')) }}" 
                                                class="btn btn-sm btn-info">
                                                 View
                                             </a>
-                                            {% if user.role == 'Student' %}
-                                                <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" 
+                                            {% if user.get('role', '').lower() == 'student' %}
+                                                <a href="{{ url_for('admin.edit_user', user_id=user.get('id')) }}" 
                                                    class="btn btn-sm btn-primary">
                                                     Edit
                                                 </a>
