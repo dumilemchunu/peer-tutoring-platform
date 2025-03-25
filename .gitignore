@@ -1,10 +1,13 @@
+# Environment variables
+.env
+.env.*
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -23,31 +26,27 @@ wheels/
 
 # Virtual Environment
 venv/
-virtualenv/
 ENV/
+env/
+.venv/
 
-# Flask
-instance/
-.webassets-cache
-
-# Environment variables
-.env
-.env.local
-
-# Firebase
-service-account.json
-firebase-adminsdk.json
-
-# IDE specific files
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store
+*~
 
 # Logs
 *.log
-logs/
+
+# Local development
+instance/
+.webassets-cache
+
+# Firebase
+service-account.json
+firebase-credentials.json
 
 # User uploaded files
 app/static/uploads/*

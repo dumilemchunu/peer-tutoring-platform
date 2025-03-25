@@ -2,6 +2,7 @@ from firebase_admin import firestore
 from datetime import datetime, timedelta
 import uuid
 import base64
+from app.utils.date_utils import parse_date
 
 class FirebaseService:
     def __init__(self):
@@ -568,10 +569,15 @@ class FirebaseService:
                 sessions = []
                 for doc in query.stream():
                     session_data = doc.to_dict()
-                    session_date = session_data.get('date')
+                    session_date_str = session_data.get('date')
                     
                     # Skip sessions in the past
-                    if session_date < current_date_str:
+                    if session_date_str < current_date_str:
+                        continue
+                        
+                    # Convert date string to datetime object
+                    session_date = parse_date(session_date_str)
+                    if not session_date:
                         continue
                         
                     # Get tutor name if possible
@@ -608,7 +614,7 @@ class FirebaseService:
                 
                 # If we found real sessions, return them
                 if sessions:
-                    return sorted(sessions, key=lambda s: (s['date'], s['start_time']))
+                    return sorted(sessions, key=lambda s: (s['date'].strftime('%Y-%m-%d') if s['date'] else '', s['start_time']))
             except Exception as query_error:
                 print(f"Error querying sessions: {query_error}")
                 # Continue to fallback data
@@ -632,7 +638,7 @@ class FirebaseService:
                 'module_name': 'Introduction to Programming',
                 'tutor_id': 'tutor1',
                 'tutor_name': 'Jane Smith',
-                'date': (current_date + timedelta(days=2)).strftime('%Y-%m-%d'),
+                'date': datetime.now() + timedelta(days=2),
                 'start_time': '10:00',
                 'end_time': '11:00',
                 'status': 'Scheduled'
@@ -643,7 +649,7 @@ class FirebaseService:
                 'module_name': 'Advanced Mathematics',
                 'tutor_id': 'tutor2',
                 'tutor_name': 'John Doe',
-                'date': (current_date + timedelta(days=5)).strftime('%Y-%m-%d'),
+                'date': datetime.now() + timedelta(days=5),
                 'start_time': '14:00',
                 'end_time': '15:00',
                 'status': 'Scheduled'
@@ -1019,68 +1025,80 @@ class FirebaseService:
             return None
         
     def get_session(self, session_id):
-        """Get session details by ID"""
+        """Get details of a specific tutoring session"""
         try:
             # In demo mode, return demo session
-            if self.demo_mode or not self._ensure_db():
-                print(f"DEMO MODE: Returning demo session for ID {session_id}")
+            if self.demo_mode:
                 return {
                     'id': session_id,
-                    'student_id': 'demo-student',
-                    'tutor_id': 'demo-tutor',
-                    'tutor_name': 'Demo Tutor',
-                    'module_code': 'DEMO101',
-                    'module_name': 'Demo Module',
-                    'date': (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d'),
+                    'module_code': 'PROG101',
+                    'module_name': 'Introduction to Programming',
+                    'tutor_id': 'tutor1',
+                    'tutor_name': 'Jane Smith',
+                    'student_id': 'student1',
+                    'date': datetime.now() + timedelta(days=2),
                     'start_time': '10:00',
                     'end_time': '11:00',
                     'status': 'Scheduled',
                     'location': 'Online',
-                    'has_feedback': False
+                    'notes': 'Demo session notes'
                 }
             
-            # Try to fetch session from Firestore
-            session_doc = self.db.collection('sessions').document(session_id).get()
-            if session_doc.exists:
-                session_data = session_doc.to_dict()
+            # Ensure we have a valid database connection
+            if not self._ensure_db():
+                return None
+            
+            # Get session document
+            session_ref = self.db.collection('sessions').document(str(session_id))
+            session_doc = session_ref.get()
+            
+            if not session_doc.exists:
+                return None
                 
-                # Get tutor name
-                tutor_id = session_data.get('tutor_id')
-                tutor_name = "Unknown Tutor"
-                try:
-                    tutor = self.get_user_by_id(tutor_id)
-                    if tutor:
-                        tutor_name = tutor.get('name', 'Unknown Tutor')
-                except:
-                    pass
-                
-                # Get module name
-                module_code = session_data.get('module_code')
-                module_name = f"Module {module_code}"
-                try:
-                    module = self.get_module(module_code)
-                    if module:
-                        module_name = module.get('name', module_name)
-                except:
-                    pass
-                
-                return {
-                    'id': session_doc.id,
-                    'student_id': session_data.get('student_id'),
-                    'tutor_id': tutor_id,
-                    'tutor_name': tutor_name,
-                    'module_code': module_code,
-                    'module_name': module_name,
-                    'date': session_data.get('date'),
-                    'start_time': session_data.get('start_time'),
-                    'end_time': session_data.get('end_time'),
-                    'status': session_data.get('status', 'Scheduled'),
-                    'location': session_data.get('location', 'Online'),
-                    'has_feedback': session_data.get('has_feedback', False)
-                }
-            return None
+            session_data = session_doc.to_dict()
+            
+            # Convert date string to datetime object
+            session_date = parse_date(session_data.get('date'))
+            
+            # Get tutor name
+            tutor_id = session_data.get('tutor_id')
+            tutor_name = "Unknown Tutor"
+            try:
+                tutor = self.get_user_by_id(tutor_id)
+                if tutor:
+                    tutor_name = tutor.get('name', 'Unknown Tutor')
+            except:
+                pass  # Use default tutor name
+            
+            # Get module name
+            module_code = session_data.get('module_code')
+            module_name = f"Module {module_code}"
+            try:
+                module = self.get_module(module_code)
+                if module:
+                    module_name = module.get('name', module_name)
+            except:
+                pass  # Use default module name
+            
+            # Return session data with names included
+            return {
+                'id': session_doc.id,
+                'module_code': module_code,
+                'module_name': module_name,
+                'tutor_id': tutor_id,
+                'tutor_name': tutor_name,
+                'student_id': session_data.get('student_id'),
+                'date': session_date,
+                'start_time': session_data.get('start_time'),
+                'end_time': session_data.get('end_time'),
+                'status': session_data.get('status', 'Unknown'),
+                'location': session_data.get('location', 'Online'),
+                'notes': session_data.get('notes', ''),
+                'has_feedback': session_data.get('has_feedback', False)
+            }
+            
         except Exception as e:
-            print(f"Error getting session: {str(e)}")
+            print(f"Error getting session details: {e}")
             return None
         
     def log_content_download(self, user_id, content_id):
@@ -1105,32 +1123,28 @@ class FirebaseService:
     def get_student_past_sessions(self, student_id):
         """Get past tutoring sessions for a student"""
         try:
-            # In demo mode, return demo past sessions
-            if self.demo_mode or not self._ensure_db():
-                print(f"DEMO MODE: Returning demo past sessions for student {student_id}")
-                current_date = datetime.now()
+            # In demo mode, return demo sessions
+            if self.demo_mode:
                 return [
                     {
-                        'id': f'past-session-1-{uuid.uuid4()}',
-                        'student_id': student_id,
-                        'tutor_id': 'tutor1',
-                        'tutor_name': 'Jane Smith',
+                        'id': 'past1',
                         'module_code': 'PROG101',
                         'module_name': 'Introduction to Programming',
-                        'date': (current_date - timedelta(days=5)).strftime('%Y-%m-%d'),
+                        'tutor_id': 'tutor1',
+                        'tutor_name': 'Jane Smith',
+                        'date': datetime.now() - timedelta(days=2),
                         'start_time': '10:00',
                         'end_time': '11:00',
                         'status': 'Completed',
                         'has_feedback': False
                     },
                     {
-                        'id': f'past-session-2-{uuid.uuid4()}',
-                        'student_id': student_id,
-                        'tutor_id': 'tutor2',
-                        'tutor_name': 'John Doe',
+                        'id': 'past2',
                         'module_code': 'MATH201',
                         'module_name': 'Advanced Mathematics',
-                        'date': (current_date - timedelta(days=10)).strftime('%Y-%m-%d'),
+                        'tutor_id': 'tutor2',
+                        'tutor_name': 'John Doe',
+                        'date': datetime.now() - timedelta(days=5),
                         'start_time': '14:00',
                         'end_time': '15:00',
                         'status': 'Completed',
@@ -1138,22 +1152,31 @@ class FirebaseService:
                     }
                 ]
             
-            # Get current date for comparison
+            # Ensure we have a valid database connection
+            if not self._ensure_db():
+                return []
+            
+            # Get current date
             current_date = datetime.now().date()
             current_date_str = current_date.strftime('%Y-%m-%d')
-            student_id = str(student_id)  # Ensure student_id is a string
             
             # Query for past sessions
             sessions_ref = self.db.collection('sessions')
-            query = sessions_ref.where('student_id', '==', student_id)
+            query = sessions_ref.where('student_id', '==', str(student_id)) \
+                               .where('status', '==', 'Completed')
             
-            past_sessions = []
+            sessions = []
             for doc in query.stream():
                 session_data = doc.to_dict()
-                session_date = session_data.get('date')
+                session_date_str = session_data.get('date')
                 
-                # Only include sessions in the past
-                if session_date >= current_date_str:
+                # Skip future sessions
+                if session_date_str >= current_date_str:
+                    continue
+                    
+                # Convert date string to datetime object
+                session_date = parse_date(session_date_str)
+                if not session_date:
                     continue
                     
                 # Get tutor name
@@ -1164,8 +1187,8 @@ class FirebaseService:
                     if tutor:
                         tutor_name = tutor.get('name', 'Unknown Tutor')
                 except:
-                    pass
-                    
+                    pass  # Use default tutor name
+                
                 # Get module name
                 module_code = session_data.get('module_code')
                 module_name = f"Module {module_code}"
@@ -1174,26 +1197,26 @@ class FirebaseService:
                     if module:
                         module_name = module.get('name', module_name)
                 except:
-                    pass
-                    
-                past_sessions.append({
+                    pass  # Use default module name
+                
+                sessions.append({
                     'id': doc.id,
-                    'student_id': student_id,
-                    'tutor_id': tutor_id,
-                    'tutor_name': tutor_name,
                     'module_code': module_code,
                     'module_name': module_name,
+                    'tutor_id': tutor_id,
+                    'tutor_name': tutor_name,
                     'date': session_date,
                     'start_time': session_data.get('start_time'),
                     'end_time': session_data.get('end_time'),
-                    'status': session_data.get('status', 'Completed'),
+                    'status': session_data.get('status'),
                     'has_feedback': session_data.get('has_feedback', False)
                 })
             
-            # Sort by date (newest first)
-            return sorted(past_sessions, key=lambda s: (s['date'], s['start_time']), reverse=True)
+            # Sort sessions by date (most recent first)
+            return sorted(sessions, key=lambda s: (s['date'].strftime('%Y-%m-%d') if s['date'] else '', s['start_time']), reverse=True)
+            
         except Exception as e:
-            print(f"Error getting past sessions: {str(e)}")
+            print(f"Error getting past sessions: {e}")
             return []
         
     def submit_feedback(self, session_id, student_id, tutor_id, rating, feedback, was_helpful, improvement=''):
