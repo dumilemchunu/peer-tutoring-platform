@@ -131,6 +131,32 @@
             background-color: #6c757d;
             color: white;
         }
+        .bg-danger {
+            background-color: #dc3545;
+        }
+        .bg-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .bg-success {
+            background-color: #28a745;
+        }
+        .bg-secondary {
+            background-color: #6c757d;
+        }
+        .bg-info {
+            background-color: #17a2b8;
+        }
+        /* Custom styles for notification badge in menu */
+        .menu-item a .badge {
+            margin-left: 5px;
+            position: relative;
+            top: -1px;
+            font-size: 0.7rem;
+            padding: 3px 6px;
+            border-radius: 10px;
+        }
+        /* End custom styles */
         .content-preview {
             background-color: #f8f9fa;
             padding: 10px;
@@ -157,7 +183,18 @@
                 <a href="{{ url_for('tutor.dashboard') }}">Dashboard</a>
             </div>
             <div class="menu-item">
-                <a href="{{ url_for('tutor.manage_bookings') }}">Manage Bookings</a>
+                <a href="{{ url_for('tutor.manage_bookings') }}">
+                    Manage Bookings
+                    {% set pending_count = 0 %}
+                    {% for booking in bookings %}
+                        {% if booking.status == 'pending' %}
+                            {% set pending_count = pending_count + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if pending_count > 0 %}
+                        <span class="badge bg-danger">{{ pending_count }}</span>
+                    {% endif %}
+                </a>
             </div>
             <div class="menu-item">
                 <a href="{{ url_for('tutor.set_availability') }}">Set Availability</a>
@@ -180,6 +217,24 @@
         <div class="main-content">
             
             <!-- Dashboard Overview -->
+            <h1>Tutor Dashboard</h1>
+            <p>Welcome, {{ current_user.name }}!</p>
+            
+            {% set pending_count = 0 %}
+            {% for booking in bookings %}
+                {% if booking.status == 'pending' %}
+                    {% set pending_count = pending_count + 1 %}
+                {% endif %}
+            {% endfor %}
+            
+            {% if pending_count > 0 %}
+            <div class="alert alert-warning">
+                <h5><i class="bi bi-exclamation-triangle"></i> Action Required</h5>
+                <p>You have <strong>{{ pending_count }}</strong> pending booking request{{ 's' if pending_count > 1 else '' }} that need{{ '' if pending_count > 1 else 's' }} your attention.</p>
+                <a href="{{ url_for('tutor.manage_bookings') }}" class="btn btn-primary btn-sm mt-2">Review Bookings</a>
+            </div>
+            {% endif %}
+            
             <div class="content-section">
                 <h2>Dashboard Overview</h2>
                 <div class="row mt-4">
@@ -222,6 +277,26 @@
             <div class="content-section">
                 <h2>Recent Bookings</h2>
                 <p>View and manage your current student bookings:</p>
+                <!-- Debug information - will be removed in production -->
+                <div class="alert alert-info mb-3" style="display: {% if debug_mode %}block{% else %}none{% endif %}">
+                    System found {{ bookings|length }} bookings for this tutor.
+                </div>
+                
+                <!-- Information about booking filtering -->
+                <div class="alert alert-primary mb-3">
+                    <i class="bi bi-info-circle"></i>
+                    You are only shown bookings for modules you are assigned to teach.
+                    {% if assigned_modules %}
+                        <span>Your assigned modules are: 
+                            {% for module in assigned_modules %}
+                                <span class="badge bg-info">{{ module.module_code }}</span>
+                            {% endfor %}
+                        </span>
+                    {% else %}
+                        <span class="fw-bold">You don't have any assigned modules yet. Please contact administration.</span>
+                    {% endif %}
+                </div>
+                
                 {% if bookings %}
                 <table>
                     <thead>
@@ -243,15 +318,15 @@
                             <td>{{ booking.time_slot }}</td>
                             <td>
                                 {% if booking.status == 'pending' %}
-                                    <span class="badge badge-warning">Pending</span>
+                                    <span class="badge bg-warning text-dark">Pending</span>
                                 {% elif booking.status == 'confirmed' %}
-                                    <span class="badge badge-success">Confirmed</span>
+                                    <span class="badge bg-success">Confirmed</span>
                                 {% elif booking.status == 'rejected' %}
-                                    <span class="badge badge-danger">Rejected</span>
+                                    <span class="badge bg-danger">Rejected</span>
                                 {% elif booking.status == 'canceled' %}
-                                    <span class="badge badge-secondary">Canceled</span>
+                                    <span class="badge bg-secondary">Canceled</span>
                                 {% else %}
-                                    <span class="badge badge-info">{{ booking.status }}</span>
+                                    <span class="badge bg-info">{{ booking.status }}</span>
                                 {% endif %}
                             </td>
                             <td>

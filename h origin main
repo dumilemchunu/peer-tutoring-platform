@@ -1,0 +1,5 @@
+[33mcommit 8a78e1da5f6377294c47c6aeb1aa88e0435a6538[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: thegreatgabuza <thegreatgabuza@gmail.com>
+Date:   Tue Mar 25 15:38:00 2025 +0200
+
+    Simplify Procfile for Render deployment

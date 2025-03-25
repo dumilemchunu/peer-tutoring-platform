@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4>Debug Bookings Information</h4>
+        </div>
+        <div class="card-body">
+            <h5>Basic Information</h5>
+            <div class="alert alert-info">
+                <p><strong>Tutor ID:</strong> {{ debug_info.tutor_id }}</p>
+                <p><strong>Bookings Count:</strong> {{ debug_info.bookings_count }}</p>
+                <p><strong>Has Module Codes:</strong> {{ debug_info.has_module_codes }}</p>
+                <p><strong>Module Codes:</strong> {{ debug_info.module_codes|join(', ') or 'None found' }}</p>
+                <p><strong>All Sessions Count:</strong> {{ debug_info.all_sessions_count }}</p>
+                {% if debug_info.query_error %}
+                <p><strong>Query Error:</strong> {{ debug_info.query_error }}</p>
+                {% endif %}
+            </div>
+            
+            <h5 class="mt-4">Sample Session</h5>
+            {% if debug_info.sample_session %}
+            <div class="alert alert-secondary">
+                <pre>{{ debug_info.sample_session|tojson(indent=2) }}</pre>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">No sample session available.</div>
+            {% endif %}
+            
+            <h5 class="mt-4">Bookings Data</h5>
+            {% if debug_info.bookings %}
+                <table class="table table-bordered table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Student</th>
+                            <th>Module Code</th>
+                            <th>Module Name</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for booking in debug_info.bookings %}
+                        <tr>
+                            <td>{{ booking.id }}</td>
+                            <td>{{ booking.student_name }}</td>
+                            <td>{{ booking.module_code }}</td>
+                            <td>{{ booking.module_name }}</td>
+                            <td>{{ booking.date }}</td>
+                            <td>{{ booking.time_slot }}</td>
+                            <td>{{ booking.status }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <h6 class="mt-4">Raw Data for First Booking</h6>
+                <div class="alert alert-secondary">
+                    <pre>{{ debug_info.bookings[0]|tojson(indent=2) }}</pre>
+                </div>
+            {% else %}
+                <div class="alert alert-warning">No bookings found for this tutor.</div>
+            {% endif %}
+            
+            <div class="mt-4">
+                <a href="{{ url_for('tutor.manage_bookings') }}" class="btn btn-primary">Back to Manage Bookings</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

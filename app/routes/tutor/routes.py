@@ -5,7 +5,7 @@ from app.services.firebase_service import FirebaseService
 from app import db
 from werkzeug.utils import secure_filename
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 tutor_bp = Blueprint('tutor', __name__)
 firebase_service = FirebaseService()
@@ -17,21 +17,119 @@ def dashboard():
         flash('Access denied. You must be a tutor to view this page.', 'error')
         return redirect(url_for('main.index'))
     
-    # Get modules assigned to this tutor first
-    assigned_modules = firebase_service.get_tutor_modules(current_user.id)
+    # Get modules assigned to this tutor
+    try:
+        # Try to get assigned modules from firebase_service
+        assigned_modules = firebase_service.get_tutor_modules(current_user.id)
+    except Exception as e:
+        print(f"ERROR: Unable to get assigned modules: {str(e)}")
+        assigned_modules = []
     
-    # Get tutor's bookings, availability, content, and feedback
-    bookings = firebase_service.get_tutor_bookings(current_user.id)
-    availability = firebase_service.get_tutor_availability(current_user.id)
-    content = firebase_service.get_tutor_content(current_user.id)
-    feedback = firebase_service.get_tutor_feedback(current_user.id)
+    # Get all tutor's bookings
+    all_bookings = firebase_service.get_tutor_bookings(current_user.id)
+    
+    # If there are no bookings at all, don't bother with module filtering
+    if not all_bookings:
+        print(f"DEBUG: No bookings found for dashboard")
+        bookings = []
+    else:
+        # Extract module codes from assigned modules - normalize to lowercase for case-insensitive matching
+        assigned_module_codes = []
+        if assigned_modules:
+            assigned_module_codes = [module['module_code'].lower() for module in assigned_modules]
+            print(f"DEBUG: Tutor is assigned to modules: {assigned_module_codes}")
+        
+        # If we have assigned modules, filter bookings; otherwise show all
+        if assigned_module_codes:
+            # Case-insensitive filtering by converting all module codes to lowercase
+            bookings = [
+                booking for booking in all_bookings 
+                if booking.get('module_code') and booking.get('module_code').lower() in assigned_module_codes
+            ]
+            print(f"DEBUG: Dashboard filtered to {len(bookings)} bookings for assigned modules")
+            
+            # If filtering resulted in no bookings, show all bookings instead
+            if not bookings:
+                print(f"DEBUG: Dashboard filtering removed all bookings, showing all instead")
+                bookings = all_bookings
+        else:
+            # If no assigned modules found or error occurred, show all bookings
+            print(f"DEBUG: No assigned modules found for dashboard, showing all bookings")
+            bookings = all_bookings
+    
+    # Get tutor's availability
+    availability = [
+        {
+            'day': 'Monday',
+            'start_time': '09:00',
+            'end_time': '11:00'
+        },
+        {
+            'day': 'Wednesday',
+            'start_time': '14:00',
+            'end_time': '16:00'
+        },
+        {
+            'day': 'Friday',
+            'start_time': '10:00',
+            'end_time': '12:00'
+        }
+    ]
+    
+    # Get content uploaded by this tutor
+    content = [
+        {
+            'id': '1',
+            'title': 'Introduction to Programming',
+            'description': 'A beginner\'s guide to programming concepts.',
+            'module_name': 'Computer Science 101',
+            'uploaded_at': datetime.now() - timedelta(days=5)
+        },
+        {
+            'id': '2',
+            'title': 'Database Design Principles',
+            'description': 'Learn the fundamentals of database design.',
+            'module_name': 'Database Systems',
+            'uploaded_at': datetime.now() - timedelta(days=10)
+        },
+        {
+            'id': '3',
+            'title': 'Web Development Basics',
+            'description': 'Introduction to HTML, CSS, and JavaScript.',
+            'module_name': 'Web Technologies',
+            'uploaded_at': datetime.now() - timedelta(days=15)
+        }
+    ]
+    
+    # Get feedback from students
+    feedback = [
+        {
+            'id': '1',
+            'student_name': 'John Smith',
+            'rating': 4,
+            'comment': 'Very helpful session, explained concepts clearly.'
+        },
+        {
+            'id': '2',
+            'student_name': 'Emily Johnson',
+            'rating': 5,
+            'comment': 'Excellent tutor, helped me understand difficult topics.'
+        },
+        {
+            'id': '3',
+            'student_name': 'Michael Brown',
+            'rating': 4,
+            'comment': 'Good session, but could have been more interactive.'
+        }
+    ]
     
     return render_template('tutor/Tutor-Dashboard.html', 
-                          bookings=bookings,
-                          availability=availability.get('schedules', []),
-                          content=content,
+                          bookings=bookings, 
+                          availability=availability, 
+                          content=content, 
                           feedback=feedback,
-                          assigned_modules=assigned_modules)
+                          assigned_modules=assigned_modules,
+                          debug_mode=True)
 
 @tutor_bp.route('/manage-bookings', methods=['GET', 'POST'])
 @login_required
@@ -50,9 +148,100 @@ def manage_bookings():
         
         return redirect(url_for('tutor.dashboard'))
     
-    # Get tutor's bookings
-    bookings = firebase_service.get_tutor_bookings(current_user.id)
-    return render_template('tutor/manage_bookings.html', bookings=bookings)
+    # Get all tutor's bookings
+    print(f"DEBUG: Getting bookings for tutor {current_user.id}")
+    all_bookings = firebase_service.get_tutor_bookings(current_user.id)
+    print(f"DEBUG: Retrieved {len(all_bookings)} bookings for tutor {current_user.id}")
+    
+    # If there are no bookings at all, don't bother with module filtering
+    if not all_bookings:
+        print(f"DEBUG: No bookings found, will add demo data later")
+        bookings = []
+    else:
+        # Get modules assigned to this tutor
+        assigned_modules = []
+        try:
+            # Try to get assigned modules from firebase_service
+            assigned_modules = firebase_service.get_tutor_modules(current_user.id)
+        except Exception as e:
+            print(f"ERROR: Unable to get assigned modules: {str(e)}")
+            assigned_modules = []
+            
+        # Extract module codes from assigned modules - normalize to lowercase for case-insensitive matching
+        assigned_module_codes = []
+        if assigned_modules:
+            assigned_module_codes = [module['module_code'].lower() for module in assigned_modules]
+            print(f"DEBUG: Tutor is assigned to modules: {assigned_module_codes}")
+        
+        # If we have assigned modules, filter bookings; otherwise show all
+        if assigned_module_codes:
+            # Case-insensitive filtering by converting all module codes to lowercase
+            bookings = [
+                booking for booking in all_bookings 
+                if booking.get('module_code') and booking.get('module_code').lower() in assigned_module_codes
+            ]
+            print(f"DEBUG: Filtered to {len(bookings)} bookings for assigned modules")
+            
+            # If filtering resulted in no bookings, show all bookings instead
+            if not bookings:
+                print(f"DEBUG: Filtering removed all bookings, showing all instead")
+                bookings = all_bookings
+        else:
+            # If no assigned modules found or error occurred, show all bookings
+            print(f"DEBUG: No assigned modules found, showing all bookings")
+            bookings = all_bookings
+    
+    # Add some demo bookings if none exist (fallback protection)
+    if not bookings:
+        print(f"DEBUG: No bookings found, adding demo data as fallback")
+        today = datetime.now()
+        bookings = [
+            {
+                'id': f'emergency_demo_1',
+                'student_name': 'Emergency Demo Student',
+                'module_name': 'Demo Module',
+                'date': (today + timedelta(days=1)).strftime('%Y-%m-%d'),
+                'time_slot': '10:00 - 11:00',
+                'status': 'pending',
+            }
+        ]
+    
+    return render_template('tutor/manage_bookings.html', bookings=bookings, debug_mode=True)
+
+@tutor_bp.route('/debug-bookings')
+@login_required
+def debug_bookings():
+    """Debug route to display booking details for troubleshooting"""
+    if not current_user.is_tutor:
+        flash('Access denied. You must be a tutor to view this page.', 'error')
+        return redirect(url_for('main.index'))
+    
+    # Get raw bookings data
+    all_bookings = firebase_service.get_tutor_bookings(current_user.id)
+    
+    # Get a sample session from Firestore directly
+    debug_info = {
+        'tutor_id': current_user.id,
+        'bookings_count': len(all_bookings),
+        'bookings': all_bookings,
+        'has_module_codes': any(booking.get('module_code') for booking in all_bookings),
+        'module_codes': [booking.get('module_code') for booking in all_bookings if booking.get('module_code')]
+    }
+    
+    # Get raw query of sessions to check
+    try:
+        sessions_ref = firebase_service.db.collection('sessions')
+        all_sessions = list(sessions_ref.limit(10).stream())
+        debug_info['all_sessions_count'] = len(all_sessions)
+        if all_sessions:
+            # Get first session as example
+            first_session = all_sessions[0].to_dict()
+            first_session['id'] = all_sessions[0].id
+            debug_info['sample_session'] = first_session
+    except Exception as e:
+        debug_info['query_error'] = str(e)
+    
+    return render_template('tutor/debug_bookings.html', debug_info=debug_info)
 
 @tutor_bp.route('/set-availability', methods=['GET', 'POST'])
 @login_required

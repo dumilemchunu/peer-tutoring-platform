@@ -5,136 +5,190 @@
     <div class="row">
         <div class="col-md-10 offset-md-1">
             <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h4>Manage Bookings</h4>
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Manage Bookings</h4>
+                    <span class="badge bg-warning" id="pendingCount"></span>
                 </div>
                 <div class="card-body">
-                    {% if bookings %}
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="thead-light">
-                                    <tr>
-                                        <th>Student</th>
-                                        <th>Module</th>
-                                        <th>Date</th>
-                                        <th>Time Slot</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for booking in bookings %}
-                                    <tr>
-                                        <td>{{ booking.student_name }}</td>
-                                        <td>{{ booking.module_name }}</td>
-                                        <td>{{ booking.date }}</td>
-                                        <td>{{ booking.time_slot }}</td>
-                                        <td>
-                                            {% if booking.status == 'pending' %}
-                                                <span class="badge badge-warning">Pending</span>
-                                            {% elif booking.status == 'confirmed' %}
-                                                <span class="badge badge-success">Confirmed</span>
-                                            {% elif booking.status == 'rejected' %}
-                                                <span class="badge badge-danger">Rejected</span>
-                                            {% elif booking.status == 'canceled' %}
-                                                <span class="badge badge-secondary">Canceled</span>
-                                            {% else %}
-                                                <span class="badge badge-info">{{ booking.status }}</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if booking.status == 'pending' %}
-                                                <form method="POST" action="{{ url_for('tutor.manage_bookings') }}" class="d-inline">
-                                                    <input type="hidden" name="booking_id" value="{{ booking.id }}">
-                                                    <input type="hidden" name="action" value="confirm">
-                                                    <button type="submit" class="btn btn-sm btn-success">Confirm</button>
-                                                </form>
-                                                <form method="POST" action="{{ url_for('tutor.manage_bookings') }}" class="d-inline">
-                                                    <input type="hidden" name="booking_id" value="{{ booking.id }}">
-                                                    <input type="hidden" name="action" value="reject">
-                                                    <button type="submit" class="btn btn-sm btn-danger">Reject</button>
-                                                </form>
-                                            {% elif booking.status == 'confirmed' %}
-                                                <form method="POST" action="{{ url_for('tutor.manage_bookings') }}" class="d-inline">
-                                                    <input type="hidden" name="booking_id" value="{{ booking.id }}">
-                                                    <input type="hidden" name="action" value="cancel">
-                                                    <button type="submit" class="btn btn-sm btn-secondary">Cancel</button>
-                                                </form>
-                                            {% else %}
-                                                <span class="text-muted">No actions available</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="alert alert-info">
-                            <p>You have no bookings at this time.</p>
-                        </div>
+                    <!-- Debug information -->
+                    {% if debug_mode %}
+                    <div class="alert alert-info mb-3">
+                        System found {{ bookings|length }} bookings for this tutor.
+                    </div>
                     {% endif %}
                     
-                    <div class="text-center mt-4">
-                        <a href="{{ url_for('tutor.dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+                    <!-- Module Assignment Info -->
+                    <div class="alert alert-primary mb-3">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <span>You are shown bookings for modules you are assigned to teach. Contact administration for additional module access.</span>
                     </div>
+
+                    {% if bookings %}
+                        <!-- Booking Tabs -->
+                        <ul class="nav nav-tabs mb-3" id="bookingTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all-bookings" type="button" role="tab">
+                                    All Bookings <span class="badge bg-secondary">{{ bookings|length }}</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending-bookings" type="button" role="tab">
+                                    Pending <span class="badge bg-warning text-dark pending-count">0</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed-bookings" type="button" role="tab">
+                                    Confirmed <span class="badge bg-success confirmed-count">0</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed-bookings" type="button" role="tab">
+                                    Completed <span class="badge bg-info completed-count">0</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected-bookings" type="button" role="tab">
+                                    Rejected <span class="badge bg-danger rejected-count">0</span>
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="bookingTabContent">
+                            <!-- All Bookings Tab -->
+                            <div class="tab-pane fade show active" id="all-bookings" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-hover booking-table">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Student</th>
+                                                <th>Module</th>
+                                                <th>Date</th>
+                                                <th>Time Slot</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for booking in bookings %}
+                                            <tr class="booking-row" data-status="{{ booking.status }}" data-student-email="{{ booking.student_email }}" data-student-number="{{ booking.student_number }}" data-notes="{{ booking.notes }}">
+                                                <td>
+                                                    <div>{{ booking.student_name }}</div>
+                                                    <small class="text-muted">{{ booking.student_email }}</small>
+                                                </td>
+                                                <td>{{ booking.module_name }}</td>
+                                                <td>{{ booking.date }}</td>
+                                                <td>{{ booking.time_slot }}</td>
+                                                <td>
+                                                    {% if booking.status == 'pending' %}
+                                                        <span class="badge bg-warning text-dark">Pending</span>
+                                                    {% elif booking.status == 'confirmed' %}
+                                                        <span class="badge bg-success">Confirmed</span>
+                                                    {% elif booking.status == 'completed' %}
+                                                        <span class="badge bg-info">Completed</span>
+                                                    {% elif booking.status == 'rejected' %}
+                                                        <span class="badge bg-danger">Rejected</span>
+                                                    {% elif booking.status == 'canceled' %}
+                                                        <span class="badge bg-secondary">Canceled</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group">
+                                                        {% if booking.status == 'pending' %}
+                                                            <form method="POST" action="{{ url_for('tutor.manage_bookings') }}" class="me-1">
+                                                                <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                                                                <input type="hidden" name="action" value="confirm">
+                                                                <button type="submit" class="btn btn-sm btn-success">
+                                                                    <i class="bi bi-check-circle"></i> Accept
+                                                                </button>
+                                                            </form>
+                                                            <form method="POST" action="{{ url_for('tutor.manage_bookings') }}">
+                                                                <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                                                                <input type="hidden" name="action" value="reject">
+                                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                                    <i class="bi bi-x-circle"></i> Decline
+                                                                </button>
+                                                            </form>
+                                                        {% elif booking.status == 'confirmed' %}
+                                                            <form method="POST" action="{{ url_for('tutor.manage_bookings') }}" class="me-1">
+                                                                <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                                                                <input type="hidden" name="action" value="complete">
+                                                                <button type="submit" class="btn btn-sm btn-info">
+                                                                    <i class="bi bi-check2-all"></i> Complete
+                                                                </button>
+                                                            </form>
+                                                            <form method="POST" action="{{ url_for('tutor.manage_bookings') }}">
+                                                                <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                                                                <input type="hidden" name="action" value="cancel">
+                                                                <button type="submit" class="btn btn-sm btn-secondary">
+                                                                    <i class="bi bi-calendar-x"></i> Cancel
+                                                                </button>
+                                                            </form>
+                                                        {% endif %}
+                                                        <button type="button" class="btn btn-sm btn-primary view-details" data-bs-toggle="modal" data-bs-target="#bookingDetailsModal">
+                                                            <i class="bi bi-eye"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Other status tabs will be populated by JavaScript -->
+                            <div class="tab-pane fade" id="pending-bookings" role="tabpanel"></div>
+                            <div class="tab-pane fade" id="confirmed-bookings" role="tabpanel"></div>
+                            <div class="tab-pane fade" id="completed-bookings" role="tabpanel"></div>
+                            <div class="tab-pane fade" id="rejected-bookings" role="tabpanel"></div>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-calendar-x text-muted" style="font-size: 3rem;"></i>
+                            <h5 class="mt-3">No Bookings Available</h5>
+                            <p class="text-muted">You don't have any tutoring sessions to manage at the moment.</p>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
-            
-            <!-- Booking Statistics -->
+
+            <!-- Booking Statistics Card -->
             {% if bookings %}
             <div class="card mt-4">
                 <div class="card-header bg-light">
-                    <h5>Booking Statistics</h5>
+                    <h5 class="mb-0">Booking Statistics</h5>
                 </div>
                 <div class="card-body">
-                    {% set pending_count = 0 %}
-                    {% set confirmed_count = 0 %}
-                    {% set rejected_count = 0 %}
-                    {% set canceled_count = 0 %}
-                    
-                    {% for booking in bookings %}
-                        {% if booking.status == 'pending' %}
-                            {% set pending_count = pending_count + 1 %}
-                        {% elif booking.status == 'confirmed' %}
-                            {% set confirmed_count = confirmed_count + 1 %}
-                        {% elif booking.status == 'rejected' %}
-                            {% set rejected_count = rejected_count + 1 %}
-                        {% elif booking.status == 'canceled' %}
-                            {% set canceled_count = canceled_count + 1 %}
-                        {% endif %}
-                    {% endfor %}
-                    
                     <div class="row text-center">
-                        <div class="col-md-3">
-                            <div class="card bg-warning text-white mb-3">
+                        <div class="col">
+                            <div class="card bg-warning text-dark mb-3">
                                 <div class="card-body">
                                     <h5>Pending</h5>
-                                    <h3>{{ pending_count }}</h3>
+                                    <h3 class="pending-count">0</h3>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col">
                             <div class="card bg-success text-white mb-3">
                                 <div class="card-body">
                                     <h5>Confirmed</h5>
-                                    <h3>{{ confirmed_count }}</h3>
+                                    <h3 class="confirmed-count">0</h3>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col">
+                            <div class="card bg-info text-white mb-3">
+                                <div class="card-body">
+                                    <h5>Completed</h5>
+                                    <h3 class="completed-count">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col">
                             <div class="card bg-danger text-white mb-3">
                                 <div class="card-body">
                                     <h5>Rejected</h5>
-                                    <h3>{{ rejected_count }}</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card bg-secondary text-white mb-3">
-                                <div class="card-body">
-                                    <h5>Canceled</h5>
-                                    <h3>{{ canceled_count }}</h3>
+                                    <h3 class="rejected-count">0</h3>
                                 </div>
                             </div>
                         </div>
@@ -145,4 +199,237 @@
         </div>
     </div>
 </div>
+
+<!-- Booking Details Modal -->
+<div class="modal fade" id="bookingDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Booking Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <h6>Student Information</h6>
+                    <p id="modalStudentName" class="mb-1"></p>
+                    <p id="modalStudentEmail" class="text-muted small mb-1"></p>
+                    <p id="modalStudentNumber" class="text-muted small"></p>
+                </div>
+                <div class="mb-3">
+                    <h6>Module</h6>
+                    <p id="modalModuleName"></p>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <h6>Date</h6>
+                        <p id="modalDate"></p>
+                    </div>
+                    <div class="col-6">
+                        <h6>Time</h6>
+                        <p id="modalTime"></p>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <h6>Status</h6>
+                    <p id="modalStatus"></p>
+                </div>
+                <div class="mb-3">
+                    <h6>Notes</h6>
+                    <p id="modalNotes" class="fst-italic text-muted"></p>
+                </div>
+            </div>
+            <div class="modal-footer" id="modalActions">
+                <!-- Dynamic action buttons will be inserted here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.booking-row {
+    cursor: pointer;
+}
+.booking-row:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+.nav-tabs .nav-link {
+    color: #495057;
+    border: none;
+    border-bottom: 3px solid transparent;
+}
+.nav-tabs .nav-link.active {
+    color: var(--bs-primary);
+    border-bottom: 3px solid var(--bs-primary);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    
+    // Count and update statistics
+    function updateStatistics() {
+        const bookingRows = document.querySelectorAll('.booking-row');
+        let counts = {
+            pending: 0,
+            confirmed: 0,
+            completed: 0,
+            rejected: 0
+        };
+        
+        bookingRows.forEach(row => {
+            const status = row.getAttribute('data-status');
+            if (counts.hasOwnProperty(status)) {
+                counts[status]++;
+            }
+        });
+        
+        // Update counts in all locations
+        Object.keys(counts).forEach(status => {
+            document.querySelectorAll(`.${status}-count`).forEach(el => {
+                el.textContent = counts[status];
+            });
+        });
+        
+        // Update pending count in header if any
+        const pendingCountBadge = document.getElementById('pendingCount');
+        if (pendingCountBadge && counts.pending > 0) {
+            pendingCountBadge.textContent = `${counts.pending} Pending Request${counts.pending !== 1 ? 's' : ''}`;
+        }
+    }
+    
+    // Filter bookings for each tab
+    function filterBookings(status) {
+        const bookingRows = document.querySelectorAll('.booking-row');
+        const table = document.querySelector('.booking-table').cloneNode(true);
+        const tbody = table.querySelector('tbody');
+        tbody.innerHTML = '';
+        
+        bookingRows.forEach(row => {
+            if (status === 'all' || row.getAttribute('data-status') === status) {
+                tbody.appendChild(row.cloneNode(true));
+            }
+        });
+        
+        return table;
+    }
+    
+    // Handle tab changes
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(event) {
+            const status = event.target.id.replace('-tab', '').replace('all-', '');
+            const targetPane = document.querySelector(event.target.getAttribute('data-bs-target'));
+            
+            if (status !== 'all') {
+                targetPane.innerHTML = '';
+                targetPane.appendChild(filterBookings(status));
+            }
+        });
+    });
+    
+    // Handle booking row clicks for details modal
+    document.querySelectorAll('.booking-row').forEach(row => {
+        row.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'I' || 
+                e.target.closest('button') || e.target.closest('form')) {
+                return;
+            }
+            
+            const studentName = this.cells[0].querySelector('div').textContent;
+            const studentEmail = this.getAttribute('data-student-email');
+            const studentNumber = this.getAttribute('data-student-number');
+            const moduleName = this.cells[1].textContent;
+            const date = this.cells[2].textContent;
+            const time = this.cells[3].textContent;
+            const status = this.getAttribute('data-status');
+            const notes = this.getAttribute('data-notes');
+            const bookingId = this.querySelector('input[name="booking_id"]')?.value;
+            
+            // Populate modal
+            document.getElementById('modalStudentName').textContent = studentName;
+            document.getElementById('modalStudentEmail').textContent = studentEmail;
+            document.getElementById('modalStudentNumber').textContent = studentNumber ? 
+                `Student Number: ${studentNumber}` : '';
+            document.getElementById('modalModuleName').textContent = moduleName;
+            document.getElementById('modalDate').textContent = date;
+            document.getElementById('modalTime').textContent = time;
+            document.getElementById('modalNotes').textContent = notes || 'No notes provided';
+            
+            // Set status badge
+            let statusHtml = '';
+            switch(status) {
+                case 'pending':
+                    statusHtml = '<span class="badge bg-warning text-dark">Pending</span>';
+                    break;
+                case 'confirmed':
+                    statusHtml = '<span class="badge bg-success">Confirmed</span>';
+                    break;
+                case 'completed':
+                    statusHtml = '<span class="badge bg-info">Completed</span>';
+                    break;
+                case 'rejected':
+                    statusHtml = '<span class="badge bg-danger">Rejected</span>';
+                    break;
+                case 'canceled':
+                    statusHtml = '<span class="badge bg-secondary">Canceled</span>';
+                    break;
+            }
+            document.getElementById('modalStatus').innerHTML = statusHtml;
+            
+            // Set action buttons
+            const actionsContainer = document.getElementById('modalActions');
+            actionsContainer.innerHTML = '';
+            
+            if (status === 'pending') {
+                actionsContainer.innerHTML = `
+                    <form method="POST" action="{{ url_for('tutor.manage_bookings') }}" class="me-2">
+                        <input type="hidden" name="booking_id" value="${bookingId}">
+                        <input type="hidden" name="action" value="confirm">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Accept Booking
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('tutor.manage_bookings') }}">
+                        <input type="hidden" name="booking_id" value="${bookingId}">
+                        <input type="hidden" name="action" value="reject">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-x-circle"></i> Decline Booking
+                        </button>
+                    </form>
+                `;
+            } else if (status === 'confirmed') {
+                actionsContainer.innerHTML = `
+                    <form method="POST" action="{{ url_for('tutor.manage_bookings') }}" class="me-2">
+                        <input type="hidden" name="booking_id" value="${bookingId}">
+                        <input type="hidden" name="action" value="complete">
+                        <button type="submit" class="btn btn-info">
+                            <i class="bi bi-check2-all"></i> Mark as Completed
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('tutor.manage_bookings') }}">
+                        <input type="hidden" name="booking_id" value="${bookingId}">
+                        <input type="hidden" name="action" value="cancel">
+                        <button type="submit" class="btn btn-secondary">
+                            <i class="bi bi-calendar-x"></i> Cancel Booking
+                        </button>
+                    </form>
+                `;
+            } else {
+                actionsContainer.innerHTML = `
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                `;
+            }
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('bookingDetailsModal'));
+            modal.show();
+        });
+    });
+    
+    // Initial statistics update
+    updateStatistics();
+});
+</script>
 {% endblock %} 

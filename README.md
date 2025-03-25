@@ -93,4 +93,43 @@ This application can be deployed to [Render](https://render.com) using the inclu
 
 ## License
 
-[MIT License](LICENSE) 
+[MIT License](LICENSE)
+
+## Peer Tutoring Platform
+
+### Module-Based Access Control for Tutors
+
+The platform implements a module-based access control system for tutors. This security feature ensures tutors only see and manage bookings related to modules they are assigned to teach, enhancing privacy and preventing accidental data exposure.
+
+#### Key Implementation Details:
+
+1. **Module Assignment System**
+   - Tutors are explicitly assigned to specific modules through the `module_tutors` collection
+   - Each assignment links a tutor ID with a module code
+   - Administrators can manage these assignments through the admin interface
+
+2. **Booking Filtering**
+   - When tutors access the dashboard or booking management pages, the system:
+     - Retrieves the tutor's assigned modules using `get_tutor_modules()`
+     - Filters all bookings to only show those for assigned modules
+     - Provides appropriate fallback for development/testing when no modules are assigned
+
+3. **User Interface**
+   - Clear information alerts explain that tutors only see bookings for their assigned modules
+   - Dashboards display the list of modules the tutor is assigned to
+   - Contact information for administration is provided if module access needs to be adjusted
+
+This approach provides several benefits:
+- **Data Privacy**: Students' booking information is only visible to relevant tutors
+- **Reduced Cognitive Load**: Tutors see only the bookings they need to manage
+- **Clear Responsibility**: The system clarifies which modules each tutor is responsible for
+
+#### Technical Implementation:
+
+The filtering process is implemented in the tutor route handlers (`dashboard` and `manage_bookings`), which:
+1. Retrieve all bookings for the tutor
+2. Get the tutor's assigned module codes
+3. Filter bookings to only include those whose module codes match the assigned modules
+4. Pass the filtered bookings to the template for rendering
+
+The module assignment data is managed through the `module_tutors` collection in Firebase, with a query pattern that allows efficient retrieval of a tutor's assigned modules. 

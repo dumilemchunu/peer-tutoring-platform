@@ -42,7 +42,7 @@ class FirebaseService:
                     "client_x509_cert_url": os.getenv('FIREBASE_CLIENT_CERT_URL')
                 })
                 self.app = initialize_app(cred)
-                
+            
             self.db = firestore.client()
             print("Firestore client initialized successfully")
             FirebaseService._initialized = True
@@ -52,7 +52,7 @@ class FirebaseService:
         return True  # Always return True since we require Firebase
 
     # Booking related operations
-    def create_booking(self, student_id, tutor_id, module_code, date, start_time, end_time):
+    def create_booking(self, student_id, tutor_id, module_code, session_date, time_slot, notes=''):
         """
         Create a new tutoring session booking
         
@@ -60,157 +60,368 @@ class FirebaseService:
             student_id (str): The student's user ID
             tutor_id (str): The tutor's user ID
             module_code (str): The module code
-            date (datetime.date or str): Session date
-            start_time (str): Start time (HH:MM)
-            end_time (str): End time (HH:MM)
+            session_date (str): Session date in YYYY-MM-DD format
+            time_slot (str): Time slot in format "HH:MM - HH:MM"
+            notes (str, optional): Additional notes for the session
             
         Returns:
-            str: Session ID if successful, None otherwise
+            dict: Result with success status and booking ID or error message
         """
         try:
-            print(f"DEBUG: create_booking called with:")
-            print(f"student_id: {student_id} ({type(student_id)})")
-            print(f"tutor_id: {tutor_id} ({type(tutor_id)})")
-            print(f"module_code: {module_code} ({type(module_code)})")
-            print(f"date: {date} ({type(date)})")
-            print(f"start_time: {start_time} ({type(start_time)})")
-            print(f"end_time: {end_time} ({type(end_time)})")
+            print(f"DEBUG: create_booking called with: student_id={student_id}, tutor_id={tutor_id}, module_code={module_code}")
+            print(f"DEBUG: session_date={session_date}, time_slot={time_slot}")
             
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print("ERROR: No valid database connection available")
-                fake_id = f"fallback-booking-{uuid.uuid4()}"
-                print(f"FALLBACK: Generated fallback booking ID: {fake_id}")
-                return fake_id
-            
-            # Convert all parameters to strings
-            student_id = str(student_id)
-            tutor_id = str(tutor_id)
-            module_code = str(module_code)
-            
-            # Handle date conversion
-            if isinstance(date, str):
-                try:
-                    date_obj = datetime.strptime(date, '%Y-%m-%d').date()
-                    date_str = date
-                except ValueError as e:
-                    print(f"ERROR: Invalid date format: {e}")
-                    return None
-            else:
-                try:
-                    date_obj = date
-                    date_str = date.strftime('%Y-%m-%d')
-                except Exception as e:
-                    print(f"ERROR: Invalid date object: {e}")
-                    return None
-            
-            # Validate times
-            try:
-                # Ensure times are in HH:MM format
-                datetime.strptime(start_time, '%H:%M')
-                datetime.strptime(end_time, '%H:%M')
-            except ValueError as e:
-                print(f"ERROR: Invalid time format: {e}")
-                return None
-            
-            # Ensure all required fields are present
-            if not all([student_id, tutor_id, module_code, date_str, start_time, end_time]):
-                missing = []
-                if not student_id: missing.append("student_id")
-                if not tutor_id: missing.append("tutor_id")
-                if not module_code: missing.append("module_code")
-                if not date_str: missing.append("date")
-                if not start_time: missing.append("start_time")
-                if not end_time: missing.append("end_time")
-                print(f"ERROR: Missing required fields: {', '.join(missing)}")
-                return None
-
-            # Check if the slot is still available
-            try:
-                available_slots = self.get_tutor_schedule(tutor_id, date_obj)
-                time_slot = f"{start_time} - {end_time}"
-                
-                if time_slot not in available_slots:
-                    print(f"ERROR: Time slot {time_slot} is not available")
-                    return None
-            except Exception as e:
-                print(f"ERROR: Failed to verify slot availability: {e}")
-                return None
-            
-                # Create the session document
-            try:
-                session_ref = self.db.collection('sessions').document()
-                
-                session_data = {
-                    'student_id': student_id,
-                    'tutor_id': tutor_id,
-                    'module_code': module_code,
-                    'date': date_str,
-                    'start_time': start_time,
-                    'end_time': end_time,
-                    'status': 'Scheduled',
-                    'created_at': firestore.SERVER_TIMESTAMP,
-                    'location': 'Online',  # Default location
-                    'has_feedback': False
+            # Validate required fields
+            if not all([student_id, tutor_id, module_code, session_date, time_slot]):
+                return {
+                    'success': False,
+                    'error': 'Missing required fields for booking'
                 }
                 
-                print(f"DEBUG: Creating session with data: {session_data}")
-                session_ref.set(session_data)
+            # Parse the time slot to get start and end times
+            try:
+                start_time, end_time = time_slot.split(' - ')
+            except ValueError:
+                return {
+                    'success': False,
+                    'error': 'Invalid time slot format'
+                }
+            
+            # Create the session document
+            session_ref = self.db.collection('sessions').document()
+            
+            # Get student and tutor data for reference
+            try:
+                student = self.db.collection('users').document(student_id).get().to_dict() or {}
+                tutor = self.db.collection('users').document(tutor_id).get().to_dict() or {}
+                module = self.db.collection('modules').document(module_code).get().to_dict() or {}
                 
-                # Create notifications
-                try:
-                    # Notification for tutor
-                    self._create_notification(
-                        user_id=tutor_id,
-                        title="New Session Booked",
-                        message=f"A student has booked a tutoring session with you on {date_str} at {start_time}.",
-                        type="booking",
-                        reference_id=session_ref.id
-                    )
+                student_name = student.get('name', 'Unknown Student')
+                tutor_name = tutor.get('name', 'Unknown Tutor')
+                module_name = module.get('name', f"Module {module_code}")
+            except Exception as e:
+                print(f"WARNING: Error retrieving related data: {e}")
+                student_name = 'Unknown Student'
+                tutor_name = 'Unknown Tutor'
+                module_name = f"Module {module_code}"
+            
+            session_data = {
+                'id': session_ref.id,  # Store ID in the document itself for easier reference
+                'student_id': student_id,
+                'tutor_id': tutor_id,
+                'module_code': module_code,
+                'date': session_date,
+                'start_time': start_time,
+                'end_time': end_time,
+                'time_slot': time_slot,
+                'status': 'pending',  # Start as pending for tutor to confirm
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'location': 'Online',  # Default location
+                'notes': notes,
+                'has_feedback': False,
+                'student_name': student_name,
+                'tutor_name': tutor_name,
+                'module_name': module_name
+            }
+            
+            print(f"DEBUG: Creating session with data: {session_data}")
+            session_ref.set(session_data)
+            
+            # Create notifications
+            try:
+                # Notification for tutor
+                self._create_notification(
+                    user_id=tutor_id,
+                    title="New Session Booking Request",
+                    message=f"A student has requested a tutoring session with you on {session_date} at {start_time}. Please confirm or reject this request.",
+                    type="booking",
+                    reference_id=session_ref.id
+                )
+                
+                # Notification for student
+                self._create_notification(
+                    user_id=student_id,
+                    title="Session Booking Submitted",
+                    message=f"Your tutoring session request has been submitted for {session_date} at {start_time}. Waiting for tutor confirmation.",
+                    type="booking",
+                    reference_id=session_ref.id
+                )
+            except Exception as notif_error:
+                print(f"WARNING: Failed to create notifications: {notif_error}")
+                # Continue even if notifications fail
+            
+            print(f"DEBUG: Booking created successfully with ID: {session_ref.id}")
+            return {
+                'success': True,
+                'booking_id': session_ref.id
+            }
+            
+        except Exception as e:
+            print(f"ERROR: Failed to create booking: {str(e)}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def get_tutor_bookings(self, tutor_id):
+        """
+        Get all bookings for a tutor
+        
+        Args:
+            tutor_id (str): The tutor's ID
+            
+        Returns:
+            list: List of booking objects
+        """
+        try:
+            # Query sessions collection for bookings with this tutor
+            bookings = []
+            
+            print(f"DEBUG: Querying for bookings with tutor_id={tutor_id}")
+            
+            try:
+                # Ensure the tutor_id is a string
+                tutor_id_str = str(tutor_id)
+                
+                # Query the sessions collection
+                sessions_ref = self.db.collection('sessions')
+                query = sessions_ref.where('tutor_id', '==', tutor_id_str)
+                docs = list(query.stream())
+                print(f"DEBUG: Query returned {len(docs)} results")
+                
+                for doc in docs:
+                    booking_data = doc.to_dict()
+                    booking_data['id'] = doc.id  # Ensure ID is set
                     
-                    # Notification for student
-                    self._create_notification(
-                        user_id=student_id,
-                        title="Session Booking Confirmed",
-                        message=f"Your tutoring session has been booked for {date_str} at {start_time}.",
-                        type="booking",
-                        reference_id=session_ref.id
-                    )
-                except Exception as notif_error:
-                    print(f"WARNING: Failed to create notifications: {notif_error}")
-                    # Continue even if notifications fail
+                    # Get student name if not present
+                    if not booking_data.get('student_name'):
+                        try:
+                            student = self.db.collection('users').document(booking_data.get('student_id')).get().to_dict() or {}
+                            booking_data['student_name'] = student.get('name', 'Unknown Student')
+                            booking_data['student_email'] = student.get('email', '')
+                            booking_data['student_number'] = student.get('student_number', '')
+                        except Exception as e:
+                            print(f"ERROR: Failed to get student data: {e}")
+                            booking_data['student_name'] = 'Unknown Student'
                     
-                print(f"DEBUG: Booking created successfully with ID: {session_ref.id}")
-                return session_ref.id
+                    # Get module name if not present
+                    if not booking_data.get('module_name') and booking_data.get('module_code'):
+                        try:
+                            module = self.db.collection('modules').document(booking_data.get('module_code')).get().to_dict() or {}
+                            booking_data['module_name'] = module.get('name', f"Module {booking_data.get('module_code')}")
+                        except Exception as e:
+                            print(f"ERROR: Failed to get module data: {e}")
+                            booking_data['module_name'] = f"Module {booking_data.get('module_code')}"
+                    
+                    # Ensure time_slot is set
+                    if not booking_data.get('time_slot') and booking_data.get('start_time') and booking_data.get('end_time'):
+                        booking_data['time_slot'] = f"{booking_data.get('start_time')} - {booking_data.get('end_time')}"
+                    
+                    # Ensure status is lowercase for consistency
+                    if booking_data.get('status'):
+                        booking_data['status'] = booking_data.get('status').lower()
+                    else:
+                        booking_data['status'] = 'pending'  # Default status
+                    
+                    bookings.append(booking_data)
+                
+                # Sort bookings by date and time
+                bookings.sort(key=lambda x: (x.get('date', ''), x.get('start_time', '')))
+                
+                print(f"DEBUG: Found {len(bookings)} valid bookings for tutor {tutor_id}")
+                return bookings
                 
             except Exception as db_error:
-                print(f"ERROR: Database operation failed: {db_error}")
+                print(f"ERROR: Database query failed: {str(db_error)}")
                 import traceback
                 print(f"DEBUG: Traceback: {traceback.format_exc()}")
-                return None
-                
+                return []
+            
         except Exception as e:
-            print(f"ERROR: Unexpected error in create_booking: {e}")
+            print(f"ERROR: Failed to get tutor bookings: {str(e)}")
             import traceback
-            print(f"DEBUG: Outer traceback: {traceback.format_exc()}")
-            return None
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            return []
+    
+    def _get_demo_tutor_bookings(self, tutor_id):
+        """Generate demo bookings for a tutor"""
+        today = datetime.now()
+        
+        # Generate demo bookings with various statuses
+        return [
+            {
+                'id': f'demo_booking1_{tutor_id}',
+                'student_id': 'demo_student1',
+                'student_name': 'John Smith',
+                'student_email': 'john.smith@dut4life.ac.za',
+                'student_number': '21234567',
+                'tutor_id': tutor_id,
+                'module_code': 'DAST401',
+                'module_name': 'Data Structures',
+                'date': (today + timedelta(days=1)).strftime('%Y-%m-%d'),
+                'time_slot': '10:00 - 11:00',
+                'start_time': '10:00',
+                'end_time': '11:00',
+                'status': 'pending',
+                'notes': 'Need help with arrays and linked lists'
+            },
+            {
+                'id': f'demo_booking2_{tutor_id}',
+                'student_id': 'demo_student2',
+                'student_name': 'Emily Johnson',
+                'student_email': 'emily.johnson@dut4life.ac.za',
+                'student_number': '21345678',
+                'tutor_id': tutor_id,
+                'module_code': 'PBDE401',
+                'module_name': 'Platform Based Development',
+                'date': (today + timedelta(days=2)).strftime('%Y-%m-%d'),
+                'time_slot': '14:00 - 15:00',
+                'start_time': '14:00',
+                'end_time': '15:00',
+                'status': 'confirmed',
+                'notes': 'Have questions about Flask routes'
+            },
+            {
+                'id': f'demo_booking3_{tutor_id}',
+                'student_id': 'demo_student3',
+                'student_name': 'Michael Brown',
+                'student_email': 'michael.brown@dut4life.ac.za',
+                'student_number': '21456789',
+                'tutor_id': tutor_id,
+                'module_code': 'RESK401',
+                'module_name': 'Research Skills',
+                'date': (today + timedelta(days=3)).strftime('%Y-%m-%d'),
+                'time_slot': '11:00 - 12:00',
+                'start_time': '11:00',
+                'end_time': '12:00',
+                'status': 'completed',
+                'notes': 'Need help with literature review'
+            },
+            {
+                'id': f'demo_booking4_{tutor_id}',
+                'student_id': 'demo_student4',
+                'student_name': 'Sarah Wilson',
+                'student_email': 'sarah.wilson@dut4life.ac.za',
+                'student_number': '21567890',
+                'tutor_id': tutor_id,
+                'module_code': 'DAST401',
+                'module_name': 'Data Structures',
+                'date': (today + timedelta(days=1)).strftime('%Y-%m-%d'),
+                'time_slot': '13:00 - 14:00',
+                'start_time': '13:00',
+                'end_time': '14:00',
+                'status': 'rejected',
+                'notes': 'Having trouble with binary trees'
+            },
+            {
+                'id': f'demo_booking5_{tutor_id}',
+                'student_id': 'demo_student5',
+                'student_name': 'David Clark',
+                'student_email': 'david.clark@dut4life.ac.za',
+                'student_number': '21678901',
+                'tutor_id': tutor_id,
+                'module_code': 'PBDE401',
+                'module_name': 'Platform Based Development',
+                'date': (today + timedelta(days=4)).strftime('%Y-%m-%d'),
+                'time_slot': '15:00 - 16:00',
+                'start_time': '15:00',
+                'end_time': '16:00',
+                'status': 'canceled',
+                'notes': 'Need help with database integration'
+            }
+        ]
+    
+    def update_booking_status(self, booking_id, action):
+        """
+        Update the status of a booking
+        
+        Args:
+            booking_id (str): The booking ID
+            action (str): The action to perform ('confirm', 'reject', 'cancel')
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Map action to status
+            status_map = {
+                'confirm': 'confirmed',
+                'reject': 'rejected',
+                'cancel': 'canceled'
+            }
+            
+            if action not in status_map:
+                print(f"ERROR: Invalid action '{action}'")
+                return False
+            
+            new_status = status_map[action]
+            
+            # Update booking status
+            booking_ref = self.db.collection('sessions').document(booking_id)
+            booking_data = booking_ref.get().to_dict()
+            
+            if not booking_data:
+                print(f"ERROR: Booking {booking_id} not found")
+                return False
+            
+            # Update status
+            booking_ref.update({'status': new_status})
+            
+            # Create notification for student
+            try:
+                student_id = booking_data.get('student_id')
+                date = booking_data.get('date')
+                start_time = booking_data.get('start_time')
+                
+                if student_id:
+                    message = f"Your tutoring session for {date} at {start_time} has been {new_status}."
+                    self._create_notification(
+                        user_id=student_id,
+                        title=f"Session {new_status.capitalize()}",
+                        message=message,
+                        type="booking_update",
+                        reference_id=booking_id
+                    )
+            except Exception as notif_error:
+                print(f"WARNING: Failed to create notification: {notif_error}")
+                # Continue even if notification fails
+            
+            print(f"DEBUG: Successfully updated booking {booking_id} status to {new_status}")
+            return True
+            
+        except Exception as e:
+            print(f"ERROR: Failed to update booking status: {str(e)}")
+            import traceback
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            return False
 
     def get_module(self, module_code):
         """Get module data by code"""
         try:
+            print(f"Getting module data for code: {module_code}")
             # Get module document
             module_doc = self.db.collection('modules').document(str(module_code)).get()
             
             if not module_doc.exists:
                 print(f"Module {module_code} not found")
-            return None
+                return None
                 
             module_data = module_doc.to_dict()
-            module_data['code'] = module_code  # Ensure code is included in the data
-            return module_data
+            if module_data:
+                module_data['code'] = module_code  # Ensure code is included in the data
+                module_data['module_code'] = module_code  # Add for consistency
+                print(f"Successfully retrieved module: {module_code}")
+                return module_data
+            else:
+                print(f"Module {module_code} exists but has no data")
+                return None
             
         except Exception as e:
             print(f"Error getting module {module_code}: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return None
 
     def get_module_by_code(self, module_code):
@@ -240,7 +451,7 @@ class FirebaseService:
                 except ValueError as e:
                     print(f"ERROR: Invalid date format: {e}")
                     return []
-                
+            
             if date < datetime.now().date():
                 print(f"DEBUG: Date {date} is in the past")
                 return []
@@ -265,8 +476,8 @@ class FirebaseService:
                 booked_slots = []
                 sessions_ref = self.db.collection('sessions')
                 query = sessions_ref.where('tutor_id', '==', str(tutor_id)) \
-                               .where('date', '==', date_str) \
-                               .where('status', '==', 'Scheduled')
+                                 .where('date', '==', date_str) \
+                                 .where('status', '==', 'Scheduled')
                 
                 print(f"DEBUG: Querying for booked slots with tutor_id={tutor_id}, date={date_str}")
                 
@@ -289,13 +500,13 @@ class FirebaseService:
                 print(f"ERROR: Database query failed: {str(db_error)}")
                 import traceback
                 print(f"DEBUG: Traceback: {traceback.format_exc()}")
-                return ["09:00 - 10:00", "11:00 - 12:00", "14:00 - 15:00"]
-                
+                return []
+            
         except Exception as e:
             print(f"ERROR: Unexpected error in get_tutor_schedule: {str(e)}")
             import traceback
             print(f"DEBUG: Traceback: {traceback.format_exc()}")
-            return ["09:00 - 10:00", "11:00 - 12:00", "14:00 - 15:00"]
+            return []
 
     # Module management operations
     def get_all_modules(self):
@@ -329,33 +540,56 @@ class FirebaseService:
         try:
             print(f"DEBUG: Getting tutors for module {module_code}")
             
+            # Validate module exists first
+            module = self.get_module(module_code)
+            if not module:
+                print(f"WARNING: Module {module_code} not found")
+                return []
+            
             # Query for module-tutor assignments
             print(f"DEBUG: Querying module_tutors collection for module {module_code}")
-            assignments = self.db.collection('module_tutors').where('module_code', '==', str(module_code)).stream()
+            module_tutors_ref = self.db.collection('module_tutors')
+            query = module_tutors_ref.where('module_code', '==', str(module_code))
+            assignments = list(query.stream())  # Convert to list to check length
+            print(f"DEBUG: Found {len(assignments)} assignments for module {module_code}")
             
             tutors = []
             for assignment in assignments:
                 try:
                     assignment_data = assignment.to_dict()
                     tutor_id = assignment_data.get('tutor_id')
-                    print(f"DEBUG: Found tutor assignment for tutor_id: {tutor_id}")
+                    print(f"DEBUG: Processing assignment {assignment.id} for tutor_id: {tutor_id}")
                     
                     if not tutor_id:
                         print(f"WARNING: Missing tutor_id in assignment {assignment.id}")
                         continue
-                        
+                    
                     # Get tutor details
                     tutor = self.get_user_by_id(tutor_id)
                     if tutor:
-                        tutors.append({
+                        # Get assignment timestamp
+                        assigned_at = assignment_data.get('assigned_at')
+                        if assigned_at:
+                            if hasattr(assigned_at, 'timestamp'):
+                                # Convert Firestore timestamp to datetime
+                                assigned_at = datetime.fromtimestamp(assigned_at.timestamp(), tz=timezone.utc)
+                                assigned_at = assigned_at.strftime('%Y-%m-%d %H:%M:%S UTC')
+                        else:
+                            assigned_at = 'Unknown'
+
+                        tutor_info = {
                             'assignment_id': assignment.id,
                             'id': tutor_id,
                             'tutor_id': tutor_id,
                             'name': tutor.get('name', 'Unknown Tutor'),
                             'email': tutor.get('email', ''),
-                            'assigned_at': assignment_data.get('assigned_at')
-                        })
-                        print(f"DEBUG: Added tutor {tutor.get('name')} to results")
+                            'staff_number': tutor.get('staff_number', 'N/A'),
+                            'assigned_at': assigned_at,
+                            'qualifications': tutor.get('qualifications', ''),
+                            'experience': tutor.get('experience', '')
+                        }
+                        tutors.append(tutor_info)
+                        print(f"DEBUG: Added tutor {tutor_info['name']} to results with assignment date {assigned_at}")
                     else:
                         print(f"WARNING: Could not find tutor with ID {tutor_id}")
                         
@@ -365,7 +599,13 @@ class FirebaseService:
                     print(traceback.format_exc())
                     continue
             
-            print(f"DEBUG: Returning {len(tutors)} tutors found")
+            # Sort tutors by assignment date, newest first
+            tutors.sort(
+                key=lambda x: x.get('assigned_at', ''),
+                reverse=True
+            )
+            
+            print(f"DEBUG: Returning {len(tutors)} tutors found for module {module_code}")
             return tutors
             
         except Exception as e:
@@ -400,6 +640,78 @@ class FirebaseService:
             
         except Exception as e:
             print(f"Error in get_module_content: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return []
+            
+    def get_tutor_modules(self, tutor_id):
+        """
+        Get all modules assigned to a specific tutor
+        
+        Args:
+            tutor_id (str): The tutor's ID
+            
+        Returns:
+            list: List of module objects with assignment details
+        """
+        try:
+            print(f"DEBUG: Getting modules for tutor {tutor_id}")
+            
+            # Query for module-tutor assignments
+            print(f"DEBUG: Querying module_tutors collection for tutor {tutor_id}")
+            module_tutors_ref = self.db.collection('module_tutors')
+            query = module_tutors_ref.where('tutor_id', '==', str(tutor_id))
+            assignments = list(query.stream())  # Convert to list to check length
+            print(f"DEBUG: Found {len(assignments)} module assignments for tutor {tutor_id}")
+            
+            modules = []
+            for assignment in assignments:
+                try:
+                    assignment_data = assignment.to_dict()
+                    module_code = assignment_data.get('module_code')
+                    print(f"DEBUG: Processing assignment {assignment.id} for module_code: {module_code}")
+                    
+                    if not module_code:
+                        print(f"WARNING: Missing module_code in assignment {assignment.id}")
+                        continue
+                    
+                    # Get module details
+                    module = self.get_module(module_code)
+                    if module:
+                        # Get assignment timestamp
+                        assigned_at = assignment_data.get('assigned_at')
+                        if assigned_at and hasattr(assigned_at, 'timestamp'):
+                            # Convert Firestore timestamp to datetime
+                            assigned_at = datetime.fromtimestamp(assigned_at.timestamp())
+                        else:
+                            assigned_at = datetime.now()  # Default to current time
+
+                        module_info = {
+                            'assignment_id': assignment.id,
+                            'module_code': module_code,
+                            'module_name': module.get('name', f'Module {module_code}'),
+                            'description': module.get('description', ''),
+                            'assigned_at': assigned_at
+                        }
+                        modules.append(module_info)
+                        print(f"DEBUG: Added module {module_info['module_name']} to results")
+                    else:
+                        print(f"WARNING: Could not find module with code {module_code}")
+                        
+                except Exception as assignment_error:
+                    print(f"ERROR processing assignment {assignment.id}: {str(assignment_error)}")
+                    import traceback
+                    print(traceback.format_exc())
+                    continue
+            
+            # Sort modules by assignment date
+            modules.sort(key=lambda x: x.get('assigned_at', datetime.now()), reverse=True)
+            
+            print(f"DEBUG: Returning {len(modules)} modules for tutor {tutor_id}")
+            return modules
+            
+        except Exception as e:
+            print(f"ERROR in get_tutor_modules: {str(e)}")
             import traceback
             print(traceback.format_exc())
             return []
@@ -709,6 +1021,65 @@ class FirebaseService:
             print(f"Error getting upcoming sessions: {str(e)}")
             return []
 
+    def get_student_bookings(self, student_id):
+        """Get all bookings for a student regardless of status"""
+        try:
+            print(f"Getting all bookings for student {student_id}")
+            # Query for all sessions for this student
+            sessions_ref = self.db.collection('sessions')
+            query = sessions_ref.where('student_id', '==', str(student_id))
+            
+            bookings = []
+            for doc in query.stream():
+                booking_data = doc.to_dict()
+                
+                # Make sure it has required fields for display
+                if not booking_data.get('id'):
+                    booking_data['id'] = doc.id
+                
+                # Get tutor name if not present
+                if not booking_data.get('tutor_name'):
+                    try:
+                        tutor = self.db.collection('users').document(booking_data.get('tutor_id', '')).get().to_dict() or {}
+                        booking_data['tutor_name'] = tutor.get('name', 'Unknown Tutor')
+                    except Exception as e:
+                        print(f"ERROR: Failed to get tutor data: {e}")
+                        booking_data['tutor_name'] = 'Unknown Tutor'
+                
+                # Get module name if not present
+                if not booking_data.get('module_name') and booking_data.get('module_code'):
+                    try:
+                        module = self.db.collection('modules').document(booking_data.get('module_code', '')).get().to_dict() or {}
+                        booking_data['module_name'] = module.get('name', f"Module {booking_data.get('module_code')}")
+                    except Exception as e:
+                        print(f"ERROR: Failed to get module data: {e}")
+                        booking_data['module_name'] = f"Module {booking_data.get('module_code')}"
+                
+                bookings.append(booking_data)
+            
+            # Sort bookings by date (most recent first) and then by status (pending first)
+            def sort_key(booking):
+                # Define a priority for statuses (pending should be first)
+                status_priority = {
+                    'pending': 0,
+                    'confirmed': 1,
+                    'completed': 2,
+                    'cancelled': 3
+                }
+                
+                status = booking.get('status', '').lower()
+                date_str = booking.get('date', '')
+                if not date_str:
+                    return (0, 999)  # Default to lowest priority if no date
+                
+                return (status_priority.get(status, 999), date_str)
+            
+            return sorted(bookings, key=sort_key)
+            
+        except Exception as e:
+            print(f"Error getting student bookings: {str(e)}")
+            return []
+
     def get_student_past_sessions(self, student_id):
         """Get past tutoring sessions for a student"""
         try:
@@ -880,9 +1251,7 @@ class FirebaseService:
             # Ensure we have a valid database connection
             if not self._ensure_db():
                 print("ERROR: No valid database connection available")
-                fake_id = f"fallback-reservation-{uuid.uuid4()}"
-                print(f"FALLBACK: Generated fallback reservation ID: {fake_id}")
-                return fake_id
+                return None
                 
             # Convert parameters to strings
             student_id = str(student_id)
@@ -956,13 +1325,13 @@ class FirebaseService:
             except Exception as db_error:
                 print(f"ERROR: Database operation failed: {db_error}")
                 import traceback
-                print(traceback.format_exc())
+                print(f"DEBUG: Traceback: {traceback.format_exc()}")
                 return None
                 
         except Exception as e:
             print(f"ERROR: Unexpected error in create_reservation: {e}")
             import traceback
-            print(traceback.format_exc())
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
             return None
     
     def confirm_reservation(self, reservation_id):
@@ -978,18 +1347,10 @@ class FirebaseService:
         try:
             print(f"DEBUG: confirm_reservation called with ID: {reservation_id}")
             
-            # Handle demo reservations
-            if reservation_id.startswith(('demo-', 'fallback-')):
-                fake_id = reservation_id.replace('reservation', 'session')
-                print(f"DEMO CONVERT: Converted reservation to session ID: {fake_id}")
-                return fake_id
-            
             # Ensure we have a valid database connection
             if not self._ensure_db():
                 print("ERROR: No valid database connection available")
-                fake_id = f"emergency-session-{uuid.uuid4()}"
-                print(f"FALLBACK: Generated emergency session ID: {fake_id}")
-                return fake_id
+                return None
                 
             # Get the reservation
             try:
@@ -1034,7 +1395,7 @@ class FirebaseService:
                     'date': reservation_data.get('date'),
                     'start_time': reservation_data.get('start_time'),
                     'end_time': reservation_data.get('end_time'),
-                    'status': 'Scheduled',
+                    'status': 'pending',
                     'created_at': firestore.SERVER_TIMESTAMP,
                     'location': 'Online',  # Default location
                     'has_feedback': False,
@@ -1057,8 +1418,8 @@ class FirebaseService:
                     # For tutor
                     self._create_notification(
                         user_id=session_data.get('tutor_id'),
-                        title="New Session Booked",
-                        message=f"A student has booked a tutoring session with you on {session_data.get('date')} at {session_data.get('start_time')}.",
+                        title="New Session Booking Request",
+                        message=f"A student has requested a tutoring session with you on {session_data.get('date')} at {session_data.get('start_time')}. Please confirm or reject this request.",
                         type="booking",
                         reference_id=session_ref.id
                     )
@@ -1066,8 +1427,8 @@ class FirebaseService:
                     # For student
                     self._create_notification(
                         user_id=session_data.get('student_id'),
-                        title="Session Booking Confirmed",
-                        message=f"Your tutoring session has been booked for {session_data.get('date')} at {session_data.get('start_time')}.",
+                        title="Session Booking Submitted",
+                        message=f"Your tutoring session request has been submitted for {session_data.get('date')} at {session_data.get('start_time')}. Waiting for tutor confirmation.",
                         type="booking",
                         reference_id=session_ref.id
                     )
@@ -1081,22 +1442,22 @@ class FirebaseService:
             except Exception as db_error:
                 print(f"ERROR: Database operation failed: {db_error}")
                 import traceback
-                print(traceback.format_exc())
+                print(f"DEBUG: Traceback: {traceback.format_exc()}")
                 return None
                 
         except Exception as e:
             print(f"ERROR: Unexpected error in confirm_reservation: {e}")
             import traceback
-            print(traceback.format_exc())
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
             return None
     
     def cleanup_expired_reservations(self):
         """Clean up expired reservations to free up slots"""
         try:
-            # Skip in demo mode
-            if self.demo_mode or not self._ensure_db():
-                print("DEMO MODE: Skipping reservation cleanup")
-                return True
+            # Ensure we have a valid database connection
+            if not self._ensure_db():
+                print("ERROR: Database connection is not valid")
+                return False
                 
             # Get all expired reservations
             now = datetime.now()
@@ -1435,7 +1796,7 @@ class FirebaseService:
         try:
             applications = []
             # Get all pending applications
-            docs = self.db.collection('tutor_applications').where('status', '==', 'Pending').stream()
+            docs = self.db.collection('tutor_applications').where('status', '==', 'pending').stream()
             
             for doc in docs:
                 app_data = doc.to_dict()
@@ -1465,7 +1826,8 @@ class FirebaseService:
                 
                 # Convert timestamps to datetime objects
                 if 'created_at' in app_data and app_data['created_at']:
-                    app_data['created_at'] = app_data['created_at'].datetime()
+                    if hasattr(app_data['created_at'], 'timestamp'):
+                        app_data['created_at'] = datetime.fromtimestamp(app_data['created_at'].timestamp())
                 
                 applications.append(app_data)
             
@@ -1532,6 +1894,7 @@ class FirebaseService:
                     
                     print(f"Successfully processed user: {user_data.get('email', 'No email')}")
                     users.append(user_data)
+                    
                 except Exception as e:
                     print(f"Error processing user document {doc.id}: {str(e)}")
                     import traceback
@@ -1582,7 +1945,7 @@ class FirebaseService:
             
             # Update application status
             app_ref.update({
-                'status': 'Approved',
+                'status': 'approved',
                 'approved_at': firestore.SERVER_TIMESTAMP,
                 'processed_by': 'admin'  # Could be replaced with actual admin ID
             })
@@ -1619,7 +1982,7 @@ class FirebaseService:
         
         Args:
             application_id (str): The ID of the tutor application
-            reason (str, optional): Reason for rejection
+            reason (str): Reason for rejection
             
         Returns:
             bool: True if successful, False otherwise
@@ -1642,7 +2005,7 @@ class FirebaseService:
             
             # Update application status
             app_ref.update({
-                'status': 'Rejected',
+                'status': 'rejected',
                 'rejected_at': firestore.SERVER_TIMESTAMP,
                 'rejection_reason': reason,
                 'processed_by': 'admin'  # Could be replaced with actual admin ID
@@ -1711,4 +2074,288 @@ class FirebaseService:
             print(f"Error adding module: {str(e)}")
             import traceback
             print(traceback.format_exc())
+            return False
+
+    def get_available_tutors(self, exclude_module_code=None):
+        """
+        Get all available tutors that can be assigned to modules
+        
+        Args:
+            exclude_module_code (str, optional): Module code to exclude tutors from (for reassignment)
+            
+        Returns:
+            list: List of available tutors with their details
+        """
+        try:
+            print(f"Getting available tutors (excluding module {exclude_module_code})")
+            
+            # Get all users with tutor role
+            tutors = []
+            users_ref = self.db.collection('users')
+            tutor_docs = users_ref.where('role', '==', 'tutor').stream()
+            
+            for doc in tutor_docs:
+                tutor_data = doc.to_dict()
+                tutor_id = doc.id
+                
+                # Skip if no data
+                if not tutor_data:
+                    continue
+                
+                # If excluding a module, check if tutor is already assigned
+                if exclude_module_code:
+                    module_tutors_ref = self.db.collection('module_tutors')
+                    existing_assignment = module_tutors_ref.where('tutor_id', '==', tutor_id)\
+                                                         .where('module_code', '==', exclude_module_code)\
+                                                         .limit(1)\
+                                                         .stream()
+                    
+                    # Skip if already assigned to this module
+                    if len(list(existing_assignment)) > 0:
+                        continue
+                
+                # Add tutor to list with required fields
+                tutors.append({
+                    'id': tutor_id,
+                    'name': tutor_data.get('name', 'Unknown Tutor'),
+                    'email': tutor_data.get('email', ''),
+                    'staff_number': tutor_data.get('staff_number', 'N/A'),
+                    'qualifications': tutor_data.get('qualifications', ''),
+                    'experience': tutor_data.get('experience', ''),
+                    'modules': tutor_data.get('modules', [])
+                })
+            
+            print(f"Found {len(tutors)} available tutors")
+            return tutors
+            
+        except Exception as e:
+            print(f"Error getting available tutors: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return []
+
+    def assign_tutor_to_module(self, tutor_id, module_code):
+        """
+        Assign a tutor to a module
+        
+        Args:
+            tutor_id (str): The ID of the tutor to assign
+            module_code (str): The module code to assign the tutor to
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            print(f"Assigning tutor {tutor_id} to module {module_code}")
+            
+            # Validate inputs
+            if not tutor_id or not module_code:
+                print("Missing required fields")
+                return False
+            
+            # Check if tutor exists and is actually a tutor
+            tutor = self.get_user_by_id(tutor_id)
+            if not tutor or tutor.get('role', '').lower() != 'tutor':
+                print(f"Invalid tutor ID or user is not a tutor: {tutor_id}")
+                return False
+            
+            # Check if module exists
+            module = self.get_module(module_code)
+            if not module:
+                print(f"Module not found: {module_code}")
+                return False
+            
+            # Check if assignment already exists
+            module_tutors_ref = self.db.collection('module_tutors')
+            existing_assignment = module_tutors_ref.where('tutor_id', '==', tutor_id)\
+                                                 .where('module_code', '==', module_code)\
+                                                 .limit(1)\
+                                                 .stream()
+            
+            if len(list(existing_assignment)) > 0:
+                print(f"Tutor {tutor_id} is already assigned to module {module_code}")
+                return False
+            
+            # Create the assignment
+            assignment_id = f"{module_code}_{tutor_id}"
+            assignment_data = {
+                'module_code': module_code,
+                'tutor_id': tutor_id,
+                'name': tutor.get('name', 'Unknown Tutor'),
+                'email': tutor.get('email', ''),
+                'assigned_at': firestore.SERVER_TIMESTAMP
+            }
+            
+            # Save to Firestore
+            module_tutors_ref.document(assignment_id).set(assignment_data)
+            
+            # Create notification for the tutor
+            self._create_notification(
+                user_id=tutor_id,
+                title="New Module Assignment",
+                message=f"You have been assigned to teach {module.get('module_name', module_code)}.",
+                type="module_assignment",
+                reference_id=assignment_id
+            )
+            
+            print(f"Successfully assigned tutor {tutor_id} to module {module_code}")
+            return True
+            
+        except Exception as e:
+            print(f"Error assigning tutor to module: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return False
+
+    def unassign_tutor_from_module(self, assignment_id):
+        """
+        Remove a tutor's assignment from a module using the assignment ID
+        
+        Args:
+            assignment_id (str): The ID of the assignment to remove (format: module_code_tutor_id)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            print(f"Removing tutor assignment: {assignment_id}")
+            
+            # Validate input
+            if not assignment_id:
+                print("Missing assignment ID")
+                return False
+            
+            # Get the assignment document
+            module_tutors_ref = self.db.collection('module_tutors').document(assignment_id)
+            assignment = module_tutors_ref.get()
+            
+            if not assignment.exists:
+                print(f"No assignment found with ID: {assignment_id}")
+                return False
+                
+            # Get assignment data for notification
+            assignment_data = assignment.to_dict()
+            module_code = assignment_data.get('module_code')
+            tutor_id = assignment_data.get('tutor_id')
+            
+            # Delete the assignment
+            module_tutors_ref.delete()
+            
+            # Create notification for the tutor if we have the necessary data
+            if module_code and tutor_id:
+                module = self.get_module(module_code)
+                module_name = module.get('module_name', module_code) if module else module_code
+                
+                self._create_notification(
+                    user_id=tutor_id,
+                    title="Module Assignment Removed",
+                    message=f"You have been removed from teaching {module_name}.",
+                    type="module_assignment",
+                    reference_id=assignment_id
+                )
+            
+            print(f"Successfully removed assignment {assignment_id}")
+            return True
+            
+        except Exception as e:
+            print(f"Error removing tutor assignment: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return False 
+
+    def get_session(self, session_id):
+        """Get session details by ID"""
+        try:
+            session_doc = self.db.collection('sessions').document(session_id).get()
+            if not session_doc.exists:
+                return None
+                
+            session_data = session_doc.to_dict()
+            
+            # Add ID to the data if not present
+            if not session_data.get('id'):
+                session_data['id'] = session_doc.id
+                
+            return session_data
+            
+        except Exception as e:
+            print(f"Error getting session: {str(e)}")
+            return None
+
+    def update_session_status(self, session_id, new_status):
+        """Update the status of a session"""
+        try:
+            # Valid statuses
+            valid_statuses = ['pending', 'confirmed', 'completed', 'cancelled', 'rejected']
+            
+            # Check if the new status is valid
+            if new_status.lower() not in valid_statuses:
+                print(f"Invalid status: {new_status}")
+                return False
+            
+            # Get the session document
+            session_ref = self.db.collection('sessions').document(session_id)
+            session_doc = session_ref.get()
+            
+            if not session_doc.exists:
+                print(f"Session {session_id} not found")
+                return False
+            
+            # Update the status
+            session_ref.update({
+                'status': new_status.lower(),
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
+            
+            # Get the updated session data for notifications
+            session_data = session_doc.to_dict()
+            student_id = session_data.get('student_id')
+            tutor_id = session_data.get('tutor_id')
+            session_date = session_data.get('date')
+            time_slot = session_data.get('time_slot')
+            
+            # Create notifications based on the new status
+            try:
+                # Notification for student
+                student_message = ""
+                if new_status.lower() == 'confirmed':
+                    student_message = f"Your tutoring session on {session_date} at {time_slot} has been confirmed."
+                elif new_status.lower() == 'cancelled':
+                    student_message = f"Your tutoring session on {session_date} at {time_slot} has been cancelled."
+                elif new_status.lower() == 'rejected':
+                    student_message = f"Your tutoring session request for {session_date} at {time_slot} has been rejected."
+                elif new_status.lower() == 'completed':
+                    student_message = f"Your tutoring session on {session_date} at {time_slot} has been marked as completed."
+                
+                if student_message and student_id:
+                    self._create_notification(
+                        user_id=student_id,
+                        title=f"Session {new_status.capitalize()}",
+                        message=student_message,
+                        type="booking",
+                        reference_id=session_id
+                    )
+                
+                # Notification for tutor
+                tutor_message = ""
+                if new_status.lower() == 'cancelled':
+                    tutor_message = f"A session on {session_date} at {time_slot} has been cancelled."
+                
+                if tutor_message and tutor_id:
+                    self._create_notification(
+                        user_id=tutor_id,
+                        title="Session Cancelled",
+                        message=tutor_message,
+                        type="booking",
+                        reference_id=session_id
+                    )
+                    
+            except Exception as notif_error:
+                print(f"WARNING: Failed to create notifications: {notif_error}")
+                # Continue even if notifications fail
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error updating session status: {str(e)}")
+            return False

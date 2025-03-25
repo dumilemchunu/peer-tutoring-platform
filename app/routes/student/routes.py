@@ -49,6 +49,9 @@ def home():
     # Get today's date
     today_date = datetime.now()
     
+    # Get student bookings
+    bookings = firebase_service.get_student_bookings(current_user.id)
+    
     # Get upcoming sessions
     upcoming_sessions = firebase_service.get_student_upcoming_sessions(current_user.id)
     
@@ -72,6 +75,8 @@ def home():
                           upcoming_sessions=upcoming_sessions,
                           recent_content=recent_content,
                           modules=modules,
+                          bookings=bookings,
+                          debug_mode=True,
                           stats=stats)
 
 @student_bp.route('/book-wizard', methods=['GET', 'POST'])
@@ -730,7 +735,7 @@ def quick_book():
                 )
                 
                 if booking_result.get('success'):
-                    flash("Session booked successfully! You'll receive a confirmation email shortly.", "success")
+                    flash("Session booking request submitted! You'll be notified when the tutor confirms.", "success")
                     return redirect(url_for('student.home'))
                 else:
                     flash(f"Failed to book session: {booking_result.get('error', 'Unknown error')}", "danger")
@@ -816,4 +821,71 @@ def quick_book_redirect():
     """Redirect to the new booking.quick route"""
     from flask import current_app
     current_app.logger.info("Redirecting from /student/quick-book-redirect to /student/booking/quick")
-    return redirect(url_for('booking.quick')) 
+    return redirect(url_for('booking.quick'))
+
+@student_bp.route('/view-bookings')
+@login_required
+def view_bookings():
+    """View all bookings for the current student"""
+    try:
+        # Get all student bookings
+        bookings = firebase_service.get_student_bookings(current_user.id)
+        
+        # If no bookings found, possibly provide demo data in development
+        if not bookings:
+            print(f"No bookings found for student {current_user.id}")
+            # If in development, we might want to show demo bookings
+            # This is handled by the get_student_bookings method
+
+        # Separate bookings by status for easier template rendering
+        pending_bookings = [b for b in bookings if b.get('status') == 'pending']
+        confirmed_bookings = [b for b in bookings if b.get('status') == 'confirmed']
+        completed_bookings = [b for b in bookings if b.get('status') == 'completed']
+        cancelled_bookings = [b for b in bookings if b.get('status') == 'cancelled']
+        
+        return render_template('student/view_bookings.html',
+                              bookings=bookings,
+                              pending_bookings=pending_bookings,
+                              confirmed_bookings=confirmed_bookings,
+                              completed_bookings=completed_bookings,
+                              cancelled_bookings=cancelled_bookings,
+                              debug_mode=True)
+    
+    except Exception as e:
+        print(f"Error in view_bookings: {str(e)}")
+        flash("An error occurred while retrieving your bookings.", "danger")
+        return redirect(url_for('student.home'))
+
+@student_bp.route('/cancel-booking/<booking_id>', methods=['POST'])
+@login_required
+def cancel_booking(booking_id):
+    """Cancel a booking"""
+    try:
+        # Check if the booking exists and belongs to the student
+        booking = firebase_service.get_session(booking_id)
+        if not booking:
+            flash("Booking not found.", "danger")
+            return redirect(url_for('student.view_bookings'))
+        
+        if booking.get('student_id') != current_user.id:
+            flash("You don't have permission to cancel this booking.", "danger")
+            return redirect(url_for('student.view_bookings'))
+        
+        # Only confirmed or pending bookings can be cancelled
+        if booking.get('status') not in ['confirmed', 'pending']:
+            flash("This booking cannot be cancelled.", "danger")
+            return redirect(url_for('student.view_bookings'))
+        
+        # Cancel the booking
+        success = firebase_service.update_session_status(booking_id, 'cancelled')
+        if success:
+            flash("Booking cancelled successfully.", "success")
+        else:
+            flash("Failed to cancel booking.", "danger")
+        
+        return redirect(url_for('student.view_bookings'))
+    
+    except Exception as e:
+        print(f"Error in cancel_booking: {str(e)}")
+        flash("An error occurred while cancelling your booking.", "danger")
+        return redirect(url_for('student.view_bookings')) 

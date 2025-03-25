@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Bookings - Peer Tutoring Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #4cc9f0;
+            --info-color: #4895ef;
+            --warning-color: #f72585;
+            --danger-color: #e63946;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        
+        .dashboard-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            padding: 25px 0;
+            height: 100%;
+            position: fixed;
+            z-index: 1000;
+        }
+        
+        .logo {
+            padding: 0 25px;
+            margin-bottom: 30px;
+        }
+        
+        .logo h2 {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .nav-item {
+            padding: 0 15px;
+            margin-bottom: 5px;
+        }
+        
+        .nav-link {
+            color: #6c757d;
+            padding: 12px 10px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .nav-link i {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        
+        .main-content {
+            margin-left: 280px;
+            width: calc(100% - 280px);
+            padding: 30px;
+        }
+        
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .header-bar h1 {
+            margin: 0;
+            font-weight: 700;
+            color: var(--dark-color);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-weight: 700;
+            color: var(--dark-color);
+            margin: 0;
+        }
+        
+        .booking-card {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        
+        .booking-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        .booking-body {
+            padding: 20px;
+        }
+        
+        .booking-item {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            margin-bottom: 15px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .booking-item.pending {
+            border-left: 4px solid var(--warning-color);
+        }
+        
+        .booking-item.confirmed {
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .booking-item.completed {
+            border-left: 4px solid var(--info-color);
+        }
+        
+        .booking-item.cancelled {
+            border-left: 4px solid var(--danger-color);
+        }
+        
+        .booking-status {
+            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 50px;
+        }
+        
+        .nav-tabs .nav-link {
+            color: var(--dark-color);
+            border: none;
+            border-bottom: 3px solid transparent;
+            border-radius: 0;
+            padding: 10px 15px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary-color);
+            background-color: transparent;
+            border-bottom: 3px solid var(--primary-color);
+        }
+        
+        .tab-pane {
+            padding: 20px 0;
+        }
+        
+        .badge-counter {
+            position: relative;
+            top: -2px;
+            margin-left: 5px;
+        }
+        
+        .notes-text {
+            font-style: italic;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-wrapper">
+        <div class="sidebar">
+            <div class="logo">
+                <h2>Student Portal</h2>
+            </div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('student.home') }}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('booking.quick') }}">
+                        <i class="bi bi-calendar-plus"></i> Book Tutor
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="{{ url_for('student.view_bookings') }}">
+                        <i class="bi bi-calendar-check"></i> My Bookings
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('student.view_modules') }}">
+                        <i class="bi bi-book"></i> View Modules
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('student.view_content') }}">
+                        <i class="bi bi-file-earmark-text"></i> Learning Content
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('student.submit_feedback') }}">
+                        <i class="bi bi-star"></i> Give Feedback
+                    </a>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link" href="{{ url_for('auth.sign_out') }}">
+                        <i class="bi bi-box-arrow-right"></i> Sign Out
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="main-content">
+            <div class="header-bar">
+                <h1>My Bookings</h1>
+                <a href="{{ url_for('booking.quick') }}" class="btn btn-primary">
+                    <i class="bi bi-plus"></i> Book New Session
+                </a>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <!-- Debug information - will be removed in production -->
+            {% if debug_mode %}
+                <div class="alert alert-info mb-3">
+                    System found {{ bookings|length }} bookings for this student.
+                </div>
+            {% endif %}
+            
+            <!-- Bookings Tabs -->
+            <div class="booking-card">
+                <div class="booking-header">
+                    <ul class="nav nav-tabs" id="bookingTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all-bookings" type="button" role="tab">
+                                All Bookings <span class="badge bg-secondary badge-counter">{{ bookings|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending-bookings" type="button" role="tab">
+                                Pending <span class="badge bg-warning badge-counter">{{ pending_bookings|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed-bookings" type="button" role="tab">
+                                Confirmed <span class="badge bg-success badge-counter">{{ confirmed_bookings|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed-bookings" type="button" role="tab">
+                                Completed <span class="badge bg-info badge-counter">{{ completed_bookings|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cancelled-tab" data-bs-toggle="tab" data-bs-target="#cancelled-bookings" type="button" role="tab">
+                                Cancelled <span class="badge bg-danger badge-counter">{{ cancelled_bookings|length }}</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="booking-body">
+                    <div class="tab-content" id="bookingsTabContent">
+                        <!-- All Bookings Tab -->
+                        <div class="tab-pane fade show active" id="all-bookings" role="tabpanel">
+                            {% if bookings %}
+                                {% for booking in bookings %}
+                                    <div class="booking-item {{ booking.status|lower }}">
+                                        <div>
+                                            <h6>{{ booking.module_name }}</h6>
+                                            <p class="mb-0">
+                                                <span class="text-muted"><i class="bi bi-person"></i> {{ booking.tutor_name }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-calendar3"></i> {{ booking.date }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-clock"></i> {{ booking.time_slot }}</span>
+                                            </p>
+                                            {% if booking.notes %}
+                                                <p class="notes-text">Notes: {{ booking.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            {% if booking.status == 'pending' %}
+                                                <span class="badge bg-warning booking-status">Pending</span>
+                                            {% elif booking.status == 'confirmed' %}
+                                                <span class="badge bg-success booking-status">Confirmed</span>
+                                            {% elif booking.status == 'completed' %}
+                                                <span class="badge bg-info booking-status">Completed</span>
+                                            {% elif booking.status == 'cancelled' %}
+                                                <span class="badge bg-danger booking-status">Cancelled</span>
+                                            {% endif %}
+                                            
+                                            <div class="btn-group ms-2">
+                                                {% if booking.status == 'confirmed' %}
+                                                    <form action="{{ url_for('student.cancel_booking', booking_id=booking.id) }}" method="post" class="d-inline">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this booking?')">
+                                                            <i class="bi bi-x-circle"></i> Cancel
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                
+                                                {% if booking.status == 'pending' %}
+                                                    <form action="{{ url_for('student.cancel_booking', booking_id=booking.id) }}" method="post" class="d-inline">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this booking?')">
+                                                            <i class="bi bi-x-circle"></i> Cancel
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                
+                                                {% if booking.status == 'completed' %}
+                                                    <a href="{{ url_for('student.submit_feedback', booking_id=booking.id) }}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="bi bi-star"></i> Rate
+                                                    </a>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="bi bi-calendar-x text-muted" style="font-size: 3rem;"></i>
+                                    <h5 class="mt-3">No Bookings Yet</h5>
+                                    <p class="text-muted">You haven't booked any tutoring sessions yet.</p>
+                                    <a href="{{ url_for('booking.quick') }}" class="btn btn-primary">Book Your First Session</a>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Pending Bookings Tab -->
+                        <div class="tab-pane fade" id="pending-bookings" role="tabpanel">
+                            {% if pending_bookings %}
+                                {% for booking in pending_bookings %}
+                                    <div class="booking-item pending">
+                                        <div>
+                                            <h6>{{ booking.module_name }}</h6>
+                                            <p class="mb-0">
+                                                <span class="text-muted"><i class="bi bi-person"></i> {{ booking.tutor_name }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-calendar3"></i> {{ booking.date }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-clock"></i> {{ booking.time_slot }}</span>
+                                            </p>
+                                            {% if booking.notes %}
+                                                <p class="notes-text">Notes: {{ booking.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <span class="badge bg-warning booking-status">Pending</span>
+                                            <div class="btn-group ms-2">
+                                                <form action="{{ url_for('student.cancel_booking', booking_id=booking.id) }}" method="post" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this booking?')">
+                                                        <i class="bi bi-x-circle"></i> Cancel
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="bi bi-calendar-check text-muted" style="font-size: 3rem;"></i>
+                                    <h5 class="mt-3">No Pending Bookings</h5>
+                                    <p class="text-muted">You don't have any pending tutoring session requests.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Confirmed Bookings Tab -->
+                        <div class="tab-pane fade" id="confirmed-bookings" role="tabpanel">
+                            {% if confirmed_bookings %}
+                                {% for booking in confirmed_bookings %}
+                                    <div class="booking-item confirmed">
+                                        <div>
+                                            <h6>{{ booking.module_name }}</h6>
+                                            <p class="mb-0">
+                                                <span class="text-muted"><i class="bi bi-person"></i> {{ booking.tutor_name }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-calendar3"></i> {{ booking.date }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-clock"></i> {{ booking.time_slot }}</span>
+                                            </p>
+                                            {% if booking.notes %}
+                                                <p class="notes-text">Notes: {{ booking.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <span class="badge bg-success booking-status">Confirmed</span>
+                                            <div class="btn-group ms-2">
+                                                <form action="{{ url_for('student.cancel_booking', booking_id=booking.id) }}" method="post" class="d-inline">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this booking?')">
+                                                        <i class="bi bi-x-circle"></i> Cancel
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="bi bi-calendar-check text-muted" style="font-size: 3rem;"></i>
+                                    <h5 class="mt-3">No Confirmed Bookings</h5>
+                                    <p class="text-muted">You don't have any confirmed tutoring sessions.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Completed Bookings Tab -->
+                        <div class="tab-pane fade" id="completed-bookings" role="tabpanel">
+                            {% if completed_bookings %}
+                                {% for booking in completed_bookings %}
+                                    <div class="booking-item completed">
+                                        <div>
+                                            <h6>{{ booking.module_name }}</h6>
+                                            <p class="mb-0">
+                                                <span class="text-muted"><i class="bi bi-person"></i> {{ booking.tutor_name }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-calendar3"></i> {{ booking.date }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-clock"></i> {{ booking.time_slot }}</span>
+                                            </p>
+                                            {% if booking.notes %}
+                                                <p class="notes-text">Notes: {{ booking.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <span class="badge bg-info booking-status">Completed</span>
+                                            <div class="btn-group ms-2">
+                                                <a href="{{ url_for('student.submit_feedback', booking_id=booking.id) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-star"></i> Rate
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="bi bi-calendar-check text-muted" style="font-size: 3rem;"></i>
+                                    <h5 class="mt-3">No Completed Sessions</h5>
+                                    <p class="text-muted">You don't have any completed tutoring sessions yet.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Cancelled Bookings Tab -->
+                        <div class="tab-pane fade" id="cancelled-bookings" role="tabpanel">
+                            {% if cancelled_bookings %}
+                                {% for booking in cancelled_bookings %}
+                                    <div class="booking-item cancelled">
+                                        <div>
+                                            <h6>{{ booking.module_name }}</h6>
+                                            <p class="mb-0">
+                                                <span class="text-muted"><i class="bi bi-person"></i> {{ booking.tutor_name }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-calendar3"></i> {{ booking.date }}</span>
+                                                <span class="ms-3 text-muted"><i class="bi bi-clock"></i> {{ booking.time_slot }}</span>
+                                            </p>
+                                            {% if booking.notes %}
+                                                <p class="notes-text">Notes: {{ booking.notes }}</p>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <span class="badge bg-danger booking-status">Cancelled</span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="bi bi-calendar-x text-muted" style="font-size: 3rem;"></i>
+                                    <h5 class="mt-3">No Cancelled Bookings</h5>
+                                    <p class="text-muted">You don't have any cancelled tutoring sessions.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
