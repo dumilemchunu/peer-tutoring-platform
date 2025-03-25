@@ -1,47 +1,130 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
-    <h2>Set Your Availability</h2>
-    <form method="POST" action="{{ url_for('main.set_availability') }}">
-        {{ form.hidden_tag() }}
-        
-        <div class="form-group">
-            {{ form.day_of_week.label }}
-            {{ form.day_of_week(class="form-control") }}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4>Set Your Availability Schedule</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('tutor.set_availability') }}">
+                        <div id="availability-container">
+                            {% if availability %}
+                                {% for slot in availability %}
+                                <div class="availability-slot mb-3 row">
+                                    <div class="col-md-4">
+                                        <select name="day[]" class="form-control" required>
+                                            <option value="">Select Day</option>
+                                            <option value="Monday" {% if slot.day == 'Monday' %}selected{% endif %}>Monday</option>
+                                            <option value="Tuesday" {% if slot.day == 'Tuesday' %}selected{% endif %}>Tuesday</option>
+                                            <option value="Wednesday" {% if slot.day == 'Wednesday' %}selected{% endif %}>Wednesday</option>
+                                            <option value="Thursday" {% if slot.day == 'Thursday' %}selected{% endif %}>Thursday</option>
+                                            <option value="Friday" {% if slot.day == 'Friday' %}selected{% endif %}>Friday</option>
+                                            <option value="Saturday" {% if slot.day == 'Saturday' %}selected{% endif %}>Saturday</option>
+                                            <option value="Sunday" {% if slot.day == 'Sunday' %}selected{% endif %}>Sunday</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="time" name="start_time[]" class="form-control" value="{{ slot.start_time }}" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="time" name="end_time[]" class="form-control" value="{{ slot.end_time }}" required>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger remove-slot">Remove</button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="availability-slot mb-3 row">
+                                    <div class="col-md-4">
+                                        <select name="day[]" class="form-control" required>
+                                            <option value="">Select Day</option>
+                                            <option value="Monday">Monday</option>
+                                            <option value="Tuesday">Tuesday</option>
+                                            <option value="Wednesday">Wednesday</option>
+                                            <option value="Thursday">Thursday</option>
+                                            <option value="Friday">Friday</option>
+                                            <option value="Saturday">Saturday</option>
+                                            <option value="Sunday">Sunday</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="time" name="start_time[]" class="form-control" required placeholder="Start Time">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="time" name="end_time[]" class="form-control" required placeholder="End Time">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger remove-slot">Remove</button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mt-3 mb-3">
+                            <button type="button" id="add-slot" class="btn btn-secondary">Add Time Slot</button>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary">Save Availability</button>
+                            <a href="{{ url_for('tutor.dashboard') }}" class="btn btn-secondary ml-2">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        
-        <div class="form-group">
-            {{ form.start_time.label }}
-            {{ form.start_time(class="form-control") }}
-        </div>
-        
-        <div class="form-group">
-            {{ form.end_time.label }}
-            {{ form.end_time(class="form-control") }}
-        </div>
-        
-        <button type="submit" class="btn btn-primary">Add Availability</button>
-    </form>
-    
-    <h3>Your Current Availability</h3>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Day</th>
-                <th>Start Time</th>
-                <th>End Time</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for slot in availability %}
-            <tr>
-                <td>{{ slot.day_of_week }}</td>
-                <td>{{ slot.start_time.strftime('%H:%M') }}</td>
-                <td>{{ slot.end_time.strftime('%H:%M') }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('availability-container');
+        const addButton = document.getElementById('add-slot');
+        
+        // Add new time slot
+        addButton.addEventListener('click', function() {
+            const newSlot = document.createElement('div');
+            newSlot.className = 'availability-slot mb-3 row';
+            newSlot.innerHTML = `
+                <div class="col-md-4">
+                    <select name="day[]" class="form-control" required>
+                        <option value="">Select Day</option>
+                        <option value="Monday">Monday</option>
+                        <option value="Tuesday">Tuesday</option>
+                        <option value="Wednesday">Wednesday</option>
+                        <option value="Thursday">Thursday</option>
+                        <option value="Friday">Friday</option>
+                        <option value="Saturday">Saturday</option>
+                        <option value="Sunday">Sunday</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="time" name="start_time[]" class="form-control" required placeholder="Start Time">
+                </div>
+                <div class="col-md-3">
+                    <input type="time" name="end_time[]" class="form-control" required placeholder="End Time">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-danger remove-slot">Remove</button>
+                </div>
+            `;
+            container.appendChild(newSlot);
+        });
+        
+        // Remove time slot
+        container.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-slot')) {
+                const slots = document.querySelectorAll('.availability-slot');
+                if (slots.length > 1) {
+                    e.target.closest('.availability-slot').remove();
+                } else {
+                    alert('You must have at least one availability slot.');
+                }
+            }
+        });
+    });
+</script>
 {% endblock %}

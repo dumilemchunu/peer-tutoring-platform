@@ -1,24 +1,435 @@
-{% extends "base.html" %}
-
-{% block content %}
-<div class="container">
-    <h2>Submit Feedback</h2>
-    <p>For your session with {{ booking.tutor.name }} on {{ booking.date.strftime('%Y-%m-%d') }} at {{ booking.start_time.strftime('%H:%M') }}</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Feedback - Peer Tutoring Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #4cc9f0;
+            --info-color: #4895ef;
+            --warning-color: #f72585;
+            --danger-color: #e63946;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        
+        .dashboard-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            padding: 25px 0;
+            height: 100%;
+            position: fixed;
+            z-index: 1000;
+        }
+        
+        .logo {
+            padding: 0 25px;
+            margin-bottom: 30px;
+        }
+        
+        .logo h2 {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .nav-item {
+            padding: 0 15px;
+            margin-bottom: 5px;
+        }
+        
+        .nav-link {
+            color: #6c757d;
+            padding: 12px 10px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .nav-link i {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        
+        .main-content {
+            margin-left: 280px;
+            width: calc(100% - 280px);
+            padding: 30px;
+        }
+        
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .header-bar h1 {
+            margin: 0;
+            font-weight: 700;
+            color: var(--dark-color);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+        
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid #e9ecef;
+            padding: 20px;
+            border-top-left-radius: 10px !important;
+            border-top-right-radius: 10px !important;
+        }
+        
+        .card-body {
+            padding: 25px;
+        }
+        
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .rating-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .rating {
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: flex-end;
+        }
+        
+        .rating > input {
+            display: none;
+        }
+        
+        .rating > label {
+            position: relative;
+            width: 1.1em;
+            font-size: 40px;
+            color: #FFD700;
+            cursor: pointer;
+        }
+        
+        .rating > label::before {
+            content: "★";
+            position: absolute;
+            opacity: 0;
+        }
+        
+        .rating > label:hover:before,
+        .rating > label:hover ~ label:before {
+            opacity: 1 !important;
+        }
+        
+        .rating > input:checked ~ label:before {
+            opacity: 1;
+        }
+        
+        .rating > input:checked ~ label:hover:before,
+        .rating > input:checked ~ label:hover ~ label:before {
+            opacity: 0.6;
+        }
+        
+        .rating-value {
+            margin-left: 15px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .session-card {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            padding: 20px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .session-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .session-card.selected {
+            border: 2px solid var(--primary-color);
+        }
+        
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .session-title {
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .session-date {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        
+        .session-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .tutor-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        .tutor-avatar {
+            width: 50px;
+            height: 50px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 600;
+            margin-right: 15px;
+        }
+        
+        .feedback-icon {
+            color: var(--warning-color);
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-wrapper">
+        <div class="sidebar">
+            <div class="logo">
+                <h2>Student Portal</h2>
+            </div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('student.home') }}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('booking.quick') }}">
+                        <i class="bi bi-calendar-plus"></i> Book Tutor
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('student.view_modules') }}">
+                        <i class="bi bi-book"></i> View Modules
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('student.view_content') }}">
+                        <i class="bi bi-file-earmark-text"></i> Learning Content
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="{{ url_for('student.submit_feedback') }}">
+                        <i class="bi bi-star"></i> Give Feedback
+                    </a>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link" href="{{ url_for('auth.sign_out') }}">
+                        <i class="bi bi-box-arrow-right"></i> Sign Out
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="main-content">
+            <div class="header-bar">
+                <h1>Give Feedback</h1>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            {% if session_to_review %}
+                <!-- Feedback form for specific session -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">Session Feedback</h4>
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ url_for('student.submit_session_feedback', session_id=session_to_review.id) }}" method="POST">
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">{{ session_to_review.module_name }} ({{ session_to_review.module_code }})</h5>
+                                    <span class="text-muted">{{ session_to_review.date.strftime('%d %b, %Y') if session_to_review.date else 'N/A' }} | {{ session_to_review.start_time }} - {{ session_to_review.end_time }}</span>
+                                </div>
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="tutor-avatar">{{ session_to_review.tutor_name[0] }}</div>
+                                    <div>
+                                        <h6 class="mb-0">{{ session_to_review.tutor_name }}</h6>
+                                        <span class="text-muted">Tutor</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label">How would you rate this session?</label>
+                                <div class="rating-container">
+                                    <div class="rating">
+                                        <input type="radio" name="rating" value="5" id="rate5" required><label for="rate5"></label>
+                                        <input type="radio" name="rating" value="4" id="rate4"><label for="rate4"></label>
+                                        <input type="radio" name="rating" value="3" id="rate3"><label for="rate3"></label>
+                                        <input type="radio" name="rating" value="2" id="rate2"><label for="rate2"></label>
+                                        <input type="radio" name="rating" value="1" id="rate1"><label for="rate1"></label>
+                                    </div>
+                                    <div class="rating-value" id="rating-value">0/5</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="feedback" class="form-label">What did you think about the session?</label>
+                                <textarea class="form-control" id="feedback" name="feedback" rows="4" placeholder="Please share your experience with this tutoring session..." required></textarea>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label">Was the session helpful for your studies?</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="was_helpful" id="helpful_yes" value="yes" required>
+                                    <label class="form-check-label" for="helpful_yes">Yes, I learned what I needed</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="was_helpful" id="helpful_somewhat" value="somewhat">
+                                    <label class="form-check-label" for="helpful_somewhat">Somewhat, but I still have questions</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="was_helpful" id="helpful_no" value="no">
+                                    <label class="form-check-label" for="helpful_no">No, it wasn't helpful</label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="improvement" class="form-label">How could the session be improved?</label>
+                                <textarea class="form-control" id="improvement" name="improvement" rows="3" placeholder="Share any suggestions for improvement..."></textarea>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between">
+                                <a href="{{ url_for('student.submit_feedback') }}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Back to Sessions
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-send"></i> Submit Feedback
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% else %}
+                <!-- List of sessions to review -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">Select a Session to Review</h4>
+                    </div>
+                    <div class="card-body">
+                        {% if past_sessions %}
+                            <div class="mb-4">
+                                <p>Please select a session to provide feedback:</p>
+                            </div>
+                            
+                            {% for session in past_sessions %}
+                                <div class="session-card {% if session.has_feedback %}has-feedback{% endif %}" onclick="window.location='{{ url_for('student.submit_feedback', session_id=session.id) }}'">
+                                    <div class="session-header">
+                                        <h5 class="session-title">{{ session.module_name }} ({{ session.module_code }})</h5>
+                                        <span class="session-date">{{ session.date.strftime('%d %b, %Y') if session.date else 'N/A' }}</span>
+                                    </div>
+                                    <div class="session-details">
+                                        <div class="tutor-info">
+                                            <div class="tutor-avatar">{{ session.tutor_name[0] }}</div>
+                                            <div>
+                                                <div>{{ session.tutor_name }}</div>
+                                                <div class="text-muted">{{ session.start_time }} - {{ session.end_time }}</div>
+                                            </div>
+                                        </div>
+                                        {% if session.has_feedback %}
+                                            <div class="feedback-icon" title="Feedback submitted">
+                                                <i class="bi bi-check-circle-fill"></i>
+                                            </div>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                Give Feedback
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="bi bi-calendar-x" style="font-size: 48px; color: #6c757d;"></i>
+                                <h5 class="mt-3">No Past Sessions Found</h5>
+                                <p class="text-muted">You don't have any past tutoring sessions to review.</p>
+                                <a href="{{ url_for('booking.quick') }}" class="btn btn-primary mt-3">
+                                    <i class="bi bi-calendar-plus"></i> Book a Session
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
     
-    <form method="POST" action="{{ url_for('main.submit_feedback', booking_id=booking.id) }}">
-        {{ form.hidden_tag() }}
-        
-        <div class="form-group">
-            {{ form.rating.label }}
-            {{ form.rating(class="form-control") }}
-        </div>
-        
-        <div class="form-group">
-            {{ form.comment.label }}
-            {{ form.comment(class="form-control") }}
-        </div>
-        
-        <button type="submit" class="btn btn-primary">Submit Feedback</button>
-    </form>
-</div>
-{% endblock %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Script for updating rating value display
+        document.addEventListener('DOMContentLoaded', function() {
+            const ratingInputs = document.querySelectorAll('.rating input');
+            const ratingValue = document.getElementById('rating-value');
+            
+            ratingInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    ratingValue.textContent = `${this.value}/5`;
+                });
+            });
+        });
+    </script>
+</body>
+</html>

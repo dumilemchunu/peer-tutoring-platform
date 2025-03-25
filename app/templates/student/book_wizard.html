@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}Book a Tutor Session{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Book a Tutor Session</h1>
+    
+    <!-- Progress bar -->
+    <div class="progress mb-4">
+        <div class="progress-bar" role="progressbar" style="width: {{ (current_step / 5) * 100 }}%;" 
+             aria-valuenow="{{ current_step }}" aria-valuemin="0" aria-valuemax="5">
+            Step {{ current_step }} of 5
+        </div>
+    </div>
+    
+    <!-- Error messages -->
+    {% if error_occurred %}
+    <div class="alert alert-danger">
+        {{ error_message }}
+    </div>
+    {% endif %}
+    
+    <!-- Step buttons -->
+    <div class="booking-steps mb-4">
+        <a href="{{ url_for('student.book_wizard') }}" class="btn {% if current_step == 1 %}btn-primary{% else %}btn-outline-secondary{% endif %}" {% if current_step == 1 %}disabled{% endif %}>
+            1. Select Module
+        </a>
+        <span class="mx-2">→</span>
+        <a href="#" class="btn {% if current_step == 2 %}btn-primary{% else %}btn-outline-secondary{% endif %}" {% if current_step < 2 %}disabled{% endif %}>
+            2. Select Tutor
+        </a>
+        <span class="mx-2">→</span>
+        <a href="#" class="btn {% if current_step == 3 %}btn-primary{% else %}btn-outline-secondary{% endif %}" {% if current_step < 3 %}disabled{% endif %}>
+            3. Select Date
+        </a>
+        <span class="mx-2">→</span>
+        <a href="#" class="btn {% if current_step == 4 %}btn-primary{% else %}btn-outline-secondary{% endif %}" {% if current_step < 4 %}disabled{% endif %}>
+            4. Select Time
+        </a>
+        <span class="mx-2">→</span>
+        <a href="#" class="btn {% if current_step == 5 %}btn-primary{% else %}btn-outline-secondary{% endif %}" {% if current_step < 5 %}disabled{% endif %}>
+            5. Confirm
+        </a>
+    </div>
+    
+    <!-- Step 1: Module Selection -->
+    {% if current_step == 1 %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Step 1: Select a Module</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('student.book_wizard') }}">
+                <div class="form-group">
+                    <label for="module_code">Choose a module you need help with:</label>
+                    <select class="form-control" id="module_code" name="module_code" required>
+                        <option value="">-- Select a module --</option>
+                        {% for module in modules %}
+                        <option value="{{ module.code }}">{{ module.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">Next</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Step 2: Tutor Selection -->
+    {% if current_step == 2 %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Step 2: Select a Tutor</h3>
+            <p>Module: {{ booking_data.module_name }}</p>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('student.book_wizard') }}">
+                <div class="form-group">
+                    <label>Choose a tutor for this module:</label>
+                    <div class="row">
+                        {% for tutor in module_tutors %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card tutor-card">
+                                <div class="card-body">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="tutor_id" 
+                                               value="{{ tutor.id }}" id="tutor_{{ tutor.id }}" required>
+                                        <label class="form-check-label w-100" for="tutor_{{ tutor.id }}">
+                                            <h5 class="card-title">{{ tutor.name }}</h5>
+                                            <p class="card-text">Email: {{ tutor.email }}</p>
+                                            {% if tutor.rating %}
+                                            <p class="card-text">Rating: {{ tutor.rating }} / 5</p>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('student.reset_booking') }}" class="btn btn-outline-secondary">Back</a>
+                    <button type="submit" class="btn btn-primary">Next</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Step 3: Date Selection -->
+    {% if current_step == 3 %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Step 3: Select a Date</h3>
+            <p>Module: {{ booking_data.module_name }} | Tutor: {{ booking_data.tutor_name }}</p>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('student.book_wizard') }}">
+                <div class="form-group">
+                    <label for="session_date">Choose a date for your session:</label>
+                    <select class="form-control" id="session_date" name="session_date" required>
+                        <option value="">-- Select a date --</option>
+                        {% for date in available_dates %}
+                        <option value="{{ date }}">{{ date }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('student.reset_booking') }}?step=2" class="btn btn-outline-secondary">Back</a>
+                    <button type="submit" class="btn btn-primary">Next</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Step 4: Time Slot Selection -->
+    {% if current_step == 4 %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Step 4: Select a Time Slot</h3>
+            <p>Module: {{ booking_data.module_name }} | Tutor: {{ booking_data.tutor_name }} | Date: {{ booking_data.session_date }}</p>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('student.book_wizard') }}">
+                <div class="form-group">
+                    <label>Available time slots:</label>
+                    <div class="time-slots">
+                        {% if available_slots %}
+                        {% for slot in available_slots %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="time_slot" 
+                                   value="{{ slot }}" id="slot_{{ loop.index }}" required>
+                            <label class="form-check-label" for="slot_{{ loop.index }}">
+                                {{ slot }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="alert alert-warning">
+                            No available time slots for this date. Please select another date.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('student.reset_booking') }}?step=3" class="btn btn-outline-secondary">Back</a>
+                    <button type="submit" class="btn btn-primary" {% if not available_slots %}disabled{% endif %}>Next</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Step 5: Confirmation -->
+    {% if current_step == 5 %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Step 5: Confirm Your Booking</h3>
+        </div>
+        <div class="card-body">
+            <h4>Booking Details</h4>
+            <div class="table-responsive">
+                <table class="table">
+                    <tr>
+                        <th>Module:</th>
+                        <td>{{ booking_data.module_name }} ({{ booking_data.module_code }})</td>
+                    </tr>
+                    <tr>
+                        <th>Tutor:</th>
+                        <td>{{ booking_data.tutor_name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Date:</th>
+                        <td>{{ booking_data.session_date }}</td>
+                    </tr>
+                    <tr>
+                        <th>Time:</th>
+                        <td>{{ booking_data.start_time }} - {{ booking_data.end_time }}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="alert alert-info">
+                <p><strong>Please note:</strong> Once booked, sessions can only be cancelled more than 24 hours in advance.</p>
+            </div>
+            
+            <form method="POST" action="{{ url_for('student.book_wizard') }}">
+                <div class="mt-3">
+                    <a href="{{ url_for('student.reset_booking') }}?step=4" class="btn btn-outline-secondary">Back</a>
+                    <button type="submit" class="btn btn-success">Confirm Booking</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Reset button -->
+    <div class="mt-3 text-center">
+        <a href="{{ url_for('student.reset_booking') }}" class="btn btn-link">Cancel and start over</a>
+    </div>
+</div>
+
+<style>
+.booking-steps {
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 10px;
+}
+.tutor-card {
+    height: 100%;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.tutor-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.form-check-input:checked + .form-check-label .tutor-card {
+    border-color: #007bff;
+    box-shadow: 0 0 0 1px #007bff;
+}
+.time-slots {
+    max-height: 300px;
+    overflow-y: auto;
+}
+</style>
+{% endblock %} 

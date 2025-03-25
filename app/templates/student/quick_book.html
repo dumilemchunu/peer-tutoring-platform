@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}Quick Book a Tutor{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Book a Tutor Session</h3>
+                </div>
+                <div class="card-body">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" action="{{ url_for('student.quick_book') }}" id="bookingForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="module_code" class="form-label fw-bold">Module:</label>
+                                    <select class="form-select" id="module_code" name="module_code" required>
+                                        <option value="">-- Select a module --</option>
+                                        {% for module in modules %}
+                                        <option value="{{ module.code }}" {% if selected_module and selected_module.code == module.code %}selected{% endif %}>
+                                            {{ module.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="session_date" class="form-label fw-bold">Date:</label>
+                                    <input type="date" class="form-control" id="session_date" name="session_date" 
+                                           min="{{ today_date }}" required>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="tutor_id" class="form-label fw-bold">Tutor:</label>
+                                    <select class="form-select" id="tutor_id" name="tutor_id" required>
+                                        <option value="">-- Select a tutor --</option>
+                                        <!-- Options will be populated via AJAX when module is selected -->
+                                    </select>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="time_slot" class="form-label fw-bold">Time Slot:</label>
+                                    <select class="form-select" id="time_slot" name="time_slot" required>
+                                        <option value="">-- Select a time slot --</option>
+                                        <!-- Options will be populated via AJAX when tutor and date are selected -->
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label fw-bold">Session Notes (Optional):</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                      placeholder="Describe what you'd like help with..."></textarea>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <small><strong>Note:</strong> Sessions can only be cancelled more than 24 hours in advance.</small>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('student.home') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Book Session</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="text-center mt-3">
+                <p>Need a more guided experience?</p>
+                <a href="{{ url_for('booking.wizard') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-signpost-2"></i> Use Booking Wizard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const moduleSelect = document.getElementById('module_code');
+    const tutorSelect = document.getElementById('tutor_id');
+    const dateInput = document.getElementById('session_date');
+    const timeSlotSelect = document.getElementById('time_slot');
+    
+    // When module changes, fetch tutors
+    moduleSelect.addEventListener('change', function() {
+        const moduleCode = this.value;
+        if (!moduleCode) {
+            tutorSelect.innerHTML = '<option value="">-- Select a tutor --</option>';
+            tutorSelect.disabled = true;
+            return;
+        }
+        
+        // Fetch tutors for this module
+        fetch(`/student/api/tutors-by-module/${moduleCode}`)
+            .then(response => response.json())
+            .then(data => {
+                tutorSelect.innerHTML = '<option value="">-- Select a tutor --</option>';
+                if (data.success) {
+                    data.tutors.forEach(tutor => {
+                        const option = document.createElement('option');
+                        option.value = tutor.id;
+                        option.textContent = tutor.name;
+                        tutorSelect.appendChild(option);
+                    });
+                    tutorSelect.disabled = false;
+                } else {
+                    tutorSelect.innerHTML += '<option value="" disabled>No tutors available</option>';
+                    tutorSelect.disabled = true;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching tutors:', error);
+                tutorSelect.innerHTML = '<option value="">-- Error loading tutors --</option>';
+            });
+    });
+    
+    // When tutor and date change, fetch available time slots
+    function updateTimeSlots() {
+        const tutorId = tutorSelect.value;
+        const date = dateInput.value;
+        
+        if (!tutorId || !date) {
+            timeSlotSelect.innerHTML = '<option value="">-- Select a time slot --</option>';
+            timeSlotSelect.disabled = true;
+            return;
+        }
+        
+        // Fetch available time slots
+        fetch(`/student/get-tutor-schedule?tutor_id=${tutorId}&date=${date}`)
+            .then(response => response.json())
+            .then(data => {
+                timeSlotSelect.innerHTML = '<option value="">-- Select a time slot --</option>';
+                if (data.success && data.schedule && data.schedule.length > 0) {
+                    data.schedule.forEach(slot => {
+                        const option = document.createElement('option');
+                        option.value = slot;
+                        option.textContent = slot;
+                        timeSlotSelect.appendChild(option);
+                    });
+                    timeSlotSelect.disabled = false;
+                } else {
+                    timeSlotSelect.innerHTML += '<option value="" disabled>No slots available</option>';
+                    timeSlotSelect.disabled = true;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching time slots:', error);
+                timeSlotSelect.innerHTML = '<option value="">-- Error loading time slots --</option>';
+            });
+    }
+    
+    tutorSelect.addEventListener('change', updateTimeSlots);
+    dateInput.addEventListener('change', updateTimeSlots);
+    
+    // Set min date to today
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    dateInput.min = `${yyyy}-${mm}-${dd}`;
+});
+</script>
+{% endblock %} 

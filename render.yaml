@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: tutor-booking-app
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn 'app:create_app()' --config gunicorn_config.py
+    healthCheckPath: /
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PORT
+        value: 8000
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: true
+    autoDeploy: true 

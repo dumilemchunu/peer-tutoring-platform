@@ -105,7 +105,7 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="name">Full Name</label>
                 <input type="text" id="name" name="name" required>
@@ -123,10 +123,55 @@
 
             <div class="form-group">
                 <label for="role">Role</label>
-                <select id="role" name="role" required>
+                <select id="role" name="role" required onchange="toggleRoleFields()">
                     <option value="student">Student</option>
                     <option value="tutor">Tutor</option>
                 </select>
+            </div>
+
+            <div id="student-fields">
+                <div class="form-group">
+                    <label for="student_number">Student Number</label>
+                    <input type="text" id="student_number" name="student_number">
+                </div>
+            </div>
+
+            <div id="tutor-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="staff_number">Staff/Student Number</label>
+                    <input type="text" id="staff_number" name="staff_number">
+                </div>
+                
+                <div class="form-group">
+                    <label for="qualifications">Qualifications</label>
+                    <input type="text" id="qualifications" name="qualifications" placeholder="Your academic qualifications">
+                </div>
+                
+                <div class="form-group">
+                    <label for="subjects">Subjects You Can Tutor</label>
+                    <input type="text" id="subjects" name="subjects" placeholder="e.g., Mathematics, Computer Science">
+                </div>
+                
+                <div class="form-group">
+                    <label for="academic_record">Academic Record (PDF)</label>
+                    <input type="file" id="academic_record" name="academic_record" accept=".pdf" required>
+                    <small class="form-text text-muted">Please upload your academic record as a PDF file</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="cv">CV (PDF)</label>
+                    <input type="file" id="cv" name="cv" accept=".pdf" required>
+                    <small class="form-text text-muted">Please upload your CV as a PDF file</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="availability">Availability</label>
+                    <textarea id="availability" name="availability" rows="3" placeholder="Your weekly availability for tutoring sessions"></textarea>
+                </div>
+                
+                <div class="alert alert-info">
+                    Note: Tutor accounts require admin approval before you can access the tutor dashboard.
+                </div>
             </div>
 
             <button type="submit">Sign Up</button>
@@ -136,5 +181,28 @@
             <p>Already have an account? <a href="{{ url_for('auth.sign_in') }}">Sign in</a></p>
         </div>
     </div>
+
+    <script>
+        function toggleRoleFields() {
+            const role = document.getElementById('role').value;
+            const studentFields = document.getElementById('student-fields');
+            const tutorFields = document.getElementById('tutor-fields');
+            
+            if (role === 'student') {
+                studentFields.style.display = 'block';
+                tutorFields.style.display = 'none';
+                document.getElementById('student_number').required = true;
+                document.getElementById('staff_number').required = false;
+            } else if (role === 'tutor') {
+                studentFields.style.display = 'none';
+                tutorFields.style.display = 'block';
+                document.getElementById('student_number').required = false;
+                document.getElementById('staff_number').required = true;
+            }
+        }
+        
+        // Initialize on page load
+        window.onload = toggleRoleFields;
+    </script>
 </body>
 </html> 

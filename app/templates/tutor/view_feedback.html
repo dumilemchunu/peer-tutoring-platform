@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4>Student Feedback</h4>
+                </div>
+                <div class="card-body">
+                    {% if feedback %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Module</th>
+                                        <th>Rating</th>
+                                        <th>Comment</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in feedback %}
+                                    <tr>
+                                        <td>{{ item.student_name }}</td>
+                                        <td>{{ item.module_name }}</td>
+                                        <td>
+                                            <div class="star-rating">
+                                                {% for i in range(5) %}
+                                                    {% if i < item.rating|int %}
+                                                        <i class="fas fa-star text-warning"></i>
+                                                    {% else %}
+                                                        <i class="far fa-star text-muted"></i>
+                                                    {% endif %}
+                                                {% endfor %}
+                                                ({{ item.rating }}/5)
+                                            </div>
+                                        </td>
+                                        <td>{{ item.comment }}</td>
+                                        <td>{{ item.created_at.strftime('%Y-%m-%d') if item.created_at else 'N/A' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <p>No feedback has been received yet.</p>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('tutor.dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+                    </div>
+                </div>
+            </div>
+            
+            {% if feedback %}
+            <div class="card mt-4">
+                <div class="card-header bg-light">
+                    <h5>Feedback Summary</h5>
+                </div>
+                <div class="card-body">
+                    {% set total_ratings = 0 %}
+                    {% set count = 0 %}
+                    {% for item in feedback %}
+                        {% set total_ratings = total_ratings + item.rating|int %}
+                        {% set count = count + 1 %}
+                    {% endfor %}
+                    
+                    {% if count > 0 %}
+                        {% set average_rating = (total_ratings / count)|round(1) %}
+                        <div class="text-center">
+                            <h4>Average Rating: {{ average_rating }}/5</h4>
+                            <div class="star-rating-large mb-3">
+                                {% for i in range(5) %}
+                                    {% if i < average_rating|int %}
+                                        <i class="fas fa-star text-warning fa-2x"></i>
+                                    {% elif i < average_rating and i >= average_rating|int %}
+                                        <i class="fas fa-star-half-alt text-warning fa-2x"></i>
+                                    {% else %}
+                                        <i class="far fa-star text-muted fa-2x"></i>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <p>Based on {{ count }} feedback submissions</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+{% endblock %} 

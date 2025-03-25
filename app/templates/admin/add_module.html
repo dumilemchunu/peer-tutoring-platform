@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container">
     <h2>Add New Module</h2>
-    <form method="POST" action="{{ url_for('main.add_module') }}">
+    <form method="POST" action="{{ url_for('admin.add_module') }}">
         {{ form.hidden_tag() }}
         
         <div class="form-group">

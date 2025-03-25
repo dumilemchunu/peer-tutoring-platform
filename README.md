@@ -1,108 +1,96 @@
-# Peer Tutoring Platform
+# Tutor Booking Application
 
-A web-based platform that facilitates peer tutoring sessions between students and tutors at DUT. The platform allows students to book tutoring sessions, tutors to manage their availability and content, and administrators to oversee the system.
-
-## Project Structure
-
-```
-app/
-├── routes/
-│   ├── admin/
-│   │   ├── __init__.py
-│   │   └── routes.py
-│   ├── student/
-│   │   ├── __init__.py
-│   │   └── routes.py
-│   └── tutor/
-│       ├── __init__.py
-│       └── routes.py
-├── services/
-│   └── firebase_service.py
-├── templates/
-│   ├── admin/
-│   │   ├── admin.html
-│   │   └── add_module.html
-│   ├── student/
-│   │   ├── student_home.html
-│   │   ├── Book_tutor.html
-│   │   └── submit_feedback.html
-│   └── tutor/
-│       ├── Tutor-Dashboard.html
-│       ├── set_availability.html
-│       └── upload_content.html
-├── __init__.py
-├── auth.py
-├── main.py
-└── models.py
-```
+A Flask-based application for students to book tutoring sessions with tutors for various academic modules.
 
 ## Features
 
-### For Students
-- View available tutors and their schedules
-- Book tutoring sessions
-- Submit feedback for completed sessions
-- Access uploaded course content
+- User authentication for students and tutors
+- Module browsing and tutor selection
+- Session scheduling with availability checking
+- Learning content management
+- Student feedback collection
+- Responsive design for all devices
 
-### For Tutors
-- Manage availability
-- Upload course content
-- View booked sessions
-- See student feedback
+## Technology Stack
 
-### For Administrators
-- Add and manage modules
-- Monitor tutoring sessions
-- Review feedback
-- Manage user accounts
+- **Frontend**: HTML, CSS, JavaScript, Bootstrap 5
+- **Backend**: Python, Flask
+- **Database**: Firebase Firestore
+- **Authentication**: Flask-Login with Firebase
+- **Deployment**: Render
 
-## Setup Instructions
+## Local Development Setup
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. **Clone the repository**
 
-3. Set up Firebase:
-   - Create a Firebase project
-   - Download the service account key and save it as `service-account.json` in the project root
-   - Enable Firebase Authentication and Firestore
+```bash
+git clone <repository-url>
+cd tutor-booking-app
+```
 
+2. **Set up a virtual environment**
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. **Install dependencies**
+
+```bash
+pip install -r requirements.txt
+```
+
+4. **Firebase Setup**
+
+- Create a Firebase project at [firebase.google.com](https://firebase.google.com)
+- Set up Firestore database
+- Generate a private key for your service account
+- Save the key as `service-account.json` in the project root
+
+5. **Environment Configuration**
+
+- Copy `.env.example` to `.env`
+- Update the values in `.env` with your configuration
+
+6. **Run the application**
+
+```bash
+python run.py
+```
+
+## Deploying to Render
+
+This application can be deployed to [Render](https://render.com) using the included `render.yaml` file.
+
+### One-Click Deployment
+
+1. Fork this repository to your GitHub account
+2. Create a new Render account or sign in to your existing account
+3. Click "New +" and select "Blueprint"
+4. Connect your GitHub account and select your forked repository
+5. Render will detect the `render.yaml` file and automatically set up your services
+
+### Manual Deployment
+
+1. Create a new Web Service on Render
+2. Connect your GitHub repository
+3. Use the following settings:
+   - **Environment**: Python
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn 'app:create_app()' --config gunicorn_config.py`
 4. Configure environment variables:
-   - Create a `.env` file in the project root
-   - Add the following variables:
-     ```
-     FLASK_APP=run.py
-     FLASK_ENV=development
-     SECRET_KEY=your-secret-key
-     ```
+   - `SECRET_KEY`: Generate a secure random key
+   - `FLASK_ENV`: Set to `production`
+   - `DEMO_MODE`: Set to `True` or `False` depending on whether you want to use demo data
+   - `FIREBASE_CREDENTIALS`: Paste the entire contents of your `service-account.json` file
 
-5. Initialize the database:
-   ```bash
-   python seed_users.py
-   ```
+### Important Notes for Render Deployment
 
-6. Run the application:
-   ```bash
-   python run.py
-   ```
-
-## Dependencies
-
-- Flask
-- Flask-Login
-- Firebase Admin SDK
-- Python-dotenv
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a pull request
+- Firebase credentials should be stored as an environment variable in Render, not as a file
+- Set `DEMO_MODE=True` if you don't want to connect to a real Firebase instance
+- Make sure to set `FLASK_ENV=production` for security
 
 ## License
 
-This project is licensed under the MIT License. 
+[MIT License](LICENSE) 
