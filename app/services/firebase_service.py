@@ -1435,36 +1435,47 @@ class FirebaseService:
             return False
 
     def get_tutor_applications(self):
-        """Get all tutor applications with their status"""
+        """
+        Get all pending tutor applications
+        
+        Returns:
+            list: List of tutor applications
+        """
         try:
-            # Query for tutor applications
-            applications_ref = self.db.collection('tutor_applications')
             applications = []
+            # Get all pending applications
+            docs = self.db.collection('tutor_applications').where('status', '==', 'Pending').get()
             
-            for doc in applications_ref.stream():
+            for doc in docs:
                 app_data = doc.to_dict()
-                # Get user details
-                user_id = app_data.get('user_id')
-                user_data = self.get_user_by_id(user_id) if user_id else None
+                # Add the document ID to the data
+                app_data['id'] = doc.id
                 
-                applications.append({
-                    'id': doc.id,
-                    'user_id': user_id,
-                    'user_name': user_data.get('name', 'Unknown User') if user_data else 'Unknown User',
-                    'email': user_data.get('email', '') if user_data else '',
-                    'status': app_data.get('status', 'Pending'),
-                    'submitted_at': app_data.get('submitted_at'),
-                    'qualifications': app_data.get('qualifications', ''),
-                    'experience': app_data.get('experience', ''),
-                    'modules': app_data.get('modules', []),
-                    'notes': app_data.get('notes', '')
-                })
+                # Get user details
+                if 'user_id' in app_data:
+                    user_ref = self.db.collection('users').document(app_data['user_id'])
+                    user = user_ref.get()
+                    if user.exists:
+                        user_data = user.to_dict()
+                        app_data.update({
+                            'name': user_data.get('name', 'Unknown'),
+                            'email': user_data.get('email', 'No email')
+                        })
+                
+                # Convert timestamps to datetime objects
+                if 'created_at' in app_data and app_data['created_at']:
+                    app_data['created_at'] = app_data['created_at'].datetime
+                
+                applications.append(app_data)
             
-            # Sort by submission date (newest first)
-            return sorted(applications, key=lambda x: x.get('submitted_at', ''), reverse=True)
+            # Sort by creation date, newest first
+            applications.sort(key=lambda x: x.get('created_at', datetime.min), reverse=True)
+            return applications
             
         except Exception as e:
             print(f"Error getting tutor applications: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return []
 
     def get_all_users(self):

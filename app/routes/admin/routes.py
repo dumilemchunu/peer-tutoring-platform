@@ -3,12 +3,23 @@ from flask_login import login_required, current_user
 from app.models import User
 from app.services.firebase_service import FirebaseService
 from firebase_admin import auth, firestore
+from functools import wraps
 
 admin_bp = Blueprint('admin', __name__)
 firebase_service = FirebaseService()
 
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('You do not have permission to access this page.', 'danger')
+            return redirect(url_for('auth.sign_in'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @admin_bp.route('/dashboard')
 @login_required
+@admin_required
 def dashboard():
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -30,6 +41,7 @@ def dashboard():
 
 @admin_bp.route('/modules')
 @login_required
+@admin_required
 def modules():
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -48,6 +60,7 @@ def modules():
 
 @admin_bp.route('/add-module', methods=['GET', 'POST'])
 @login_required
+@admin_required
 def add_module():
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -74,56 +87,42 @@ def add_module():
 
 @admin_bp.route('/tutor-applications')
 @login_required
+@admin_required
 def tutor_applications():
-    if not current_user.is_admin:
-        flash('Access denied. You must be an administrator to view this page.', 'error')
-        return redirect(url_for('main.index'))
-    
-    # Get all pending tutor applications
     applications = firebase_service.get_tutor_applications()
-    
     return render_template('admin/tutor_applications.html', applications=applications)
 
-@admin_bp.route('/approve-tutor/<user_id>', methods=['POST'])
+@admin_bp.route('/approve-tutor/<application_id>', methods=['POST'])
 @login_required
-def approve_tutor(user_id):
-    if not current_user.is_admin:
-        flash('Access denied. You must be an administrator to view this page.', 'error')
-        return redirect(url_for('main.index'))
-    
-    try:
-        # Update tutor application status
-        firebase_service.update_tutor_application_status(user_id, 'approved')
-        
-        # Update user document to mark as verified
-        firebase_service.update_user_verification_status(user_id, True)
-        
+@admin_required
+def approve_tutor(application_id):
+    """
+    Approve a tutor application
+    """
+    if firebase_service.approve_tutor_application(application_id):
         flash('Tutor application approved successfully.', 'success')
-    except Exception as e:
-        flash(f'Error approving tutor: {str(e)}', 'error')
-    
+    else:
+        flash('Failed to approve tutor application. Please try again.', 'danger')
     return redirect(url_for('admin.tutor_applications'))
 
-@admin_bp.route('/reject-tutor/<user_id>', methods=['POST'])
+@admin_bp.route('/reject-tutor/<application_id>', methods=['POST'])
 @login_required
-def reject_tutor(user_id):
-    if not current_user.is_admin:
-        flash('Access denied. You must be an administrator to view this page.', 'error')
-        return redirect(url_for('main.index'))
-    
-    try:
-        # Update tutor application status
-        firebase_service.update_tutor_application_status(user_id, 'rejected')
-        
-        flash('Tutor application rejected.', 'success')
-    except Exception as e:
-        flash(f'Error rejecting tutor: {str(e)}', 'error')
-    
+@admin_required
+def reject_tutor(application_id):
+    """
+    Reject a tutor application
+    """
+    reason = request.form.get('reason', '')
+    if firebase_service.reject_tutor_application(application_id, reason):
+        flash('Tutor application rejected successfully.', 'success')
+    else:
+        flash('Failed to reject tutor application. Please try again.', 'danger')
     return redirect(url_for('admin.tutor_applications'))
 
 # User Management Routes
 @admin_bp.route('/users')
 @login_required
+@admin_required
 def users():
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -143,6 +142,7 @@ def users():
 
 @admin_bp.route('/users/<user_id>')
 @login_required
+@admin_required
 def view_user(user_id):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -157,6 +157,7 @@ def view_user(user_id):
 
 @admin_bp.route('/users/<user_id>/edit', methods=['GET', 'POST'])
 @login_required
+@admin_required
 def edit_user(user_id):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -212,6 +213,7 @@ def edit_user(user_id):
 
 @admin_bp.route('/users/<user_id>/delete', methods=['POST'])
 @login_required
+@admin_required
 def delete_user(user_id):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -237,6 +239,7 @@ def delete_user(user_id):
 
 @admin_bp.route('/create-user', methods=['GET', 'POST'])
 @login_required
+@admin_required
 def create_user():
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -292,6 +295,7 @@ def create_user():
 # Module-Tutor Assignment Routes
 @admin_bp.route('/modules/<module_code>/tutors')
 @login_required
+@admin_required
 def module_tutors(module_code):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -323,6 +327,7 @@ def module_tutors(module_code):
 
 @admin_bp.route('/modules/<module_code>/assign-tutor', methods=['POST'])
 @login_required
+@admin_required
 def assign_tutor(module_code):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -345,6 +350,7 @@ def assign_tutor(module_code):
 
 @admin_bp.route('/modules/tutors/<assignment_id>/remove', methods=['POST'])
 @login_required
+@admin_required
 def remove_tutor_assignment(assignment_id):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -371,6 +377,7 @@ def remove_tutor_assignment(assignment_id):
 
 @admin_bp.route('/tutors/<tutor_id>/modules')
 @login_required
+@admin_required
 def tutor_modules(tutor_id):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -399,6 +406,7 @@ def tutor_modules(tutor_id):
 
 @admin_bp.route('/modules/<module_code>/edit', methods=['POST'])
 @login_required
+@admin_required
 def edit_module(module_code):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -417,6 +425,7 @@ def edit_module(module_code):
 
 @admin_bp.route('/modules/<module_code>/delete', methods=['POST'])
 @login_required
+@admin_required
 def delete_module(module_code):
     if not current_user.is_admin:
         flash('Access denied. You must be an administrator to view this page.', 'error')
@@ -433,6 +442,7 @@ def delete_module(module_code):
 # Add this new route to view documents
 @admin_bp.route('/documents/<doc_id>')
 @login_required
+@admin_required
 def view_document(doc_id):
     if not current_user.is_admin:
         flash('Access denied. Admin privileges required.', 'error')
