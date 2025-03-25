@@ -254,8 +254,7 @@ def book_wizard():
                     current_app.logger.error(f"Error retrieving modules: {str(e)}")
                     current_app.logger.error(traceback.format_exc())
                     error_occurred = True
-                    error_message = "Failed to retrieve modules. Using demo data instead."
-                    modules = firebase_service._get_demo_modules()
+                    error_message = "Failed to retrieve modules. Please try again."
             
             # Step 2: Tutor selection
             elif current_step == 2:
@@ -380,8 +379,8 @@ def book_wizard():
                 
                 # Ensure all required data is present
                 required_fields = ['module_code', 'module_name', 'tutor_id', 'tutor_name', 
-                                  'session_date', 'start_time', 'end_time']
-                                  
+                                 'session_date', 'start_time', 'end_time']
+                                 
                 for field in required_fields:
                     if field not in booking_data:
                         flash('Missing booking information. Please start again.', 'danger')
