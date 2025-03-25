@@ -1,11 +1,12 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import base64
 from app.utils.date_utils import parse_date
 from typing import Dict, List, Optional, Tuple, Any
 import os
+import pytz
 
 class FirebaseService:
     _instance = None
@@ -19,27 +20,11 @@ class FirebaseService:
     def __init__(self):
         if not FirebaseService._initialized:
             try:
-                # Initialize Firebase Admin SDK
                 print("Initializing Firebase Admin SDK...")
                 print("Initializing Firebase with credentials from environment variables...")
                 
-                # Get credentials from environment variables
-                required_fields = [
-                    "FIREBASE_PROJECT_ID",
-                    "FIREBASE_PRIVATE_KEY_ID",
-                    "FIREBASE_PRIVATE_KEY",
-                    "FIREBASE_CLIENT_EMAIL",
-                    "FIREBASE_CLIENT_ID",
-                    "FIREBASE_CLIENT_X509_CERT_URL"
-                ]
-                
-                # Check for missing environment variables
-                missing_fields = [field for field in required_fields if not os.getenv(field)]
-                if missing_fields:
-                    raise ValueError(f"Missing required environment variables: {', '.join(missing_fields)}")
-                
                 # Create credentials dictionary with explicit type field
-                cred = credentials.Certificate({
+                cred_dict = {
                     "type": "service_account",
                     "project_id": os.getenv("FIREBASE_PROJECT_ID"),
                     "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
@@ -50,21 +35,25 @@ class FirebaseService:
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
                     "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL")
-                })
-                
-                # Initialize the app
-                self.app = firebase_admin.initialize_app(cred)
-                print("Firebase Admin SDK initialized successfully")
-                
+                }
+
+                # Check if Firebase is already initialized
+                try:
+                    self.app = firebase_admin.get_app()
+                    print("Firebase already initialized, reusing existing app")
+                except ValueError:
+                    # Initialize Firebase only if it's not already initialized
+                    cred = credentials.Certificate(cred_dict)
+                    self.app = firebase_admin.initialize_app(cred)
+                    print("Firebase Admin SDK initialized successfully")
+
                 # Initialize Firestore client
                 self.db = firestore.client()
                 print("Firestore client initialized successfully")
                 FirebaseService._initialized = True
-                
+
             except Exception as e:
                 print(f"Error initializing Firebase: {str(e)}")
-                self.app = None
-                self.db = None
                 raise
 
     def _ensure_db(self):
