@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor Dashboard - Peer Tutoring Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            display: flex;
+        }
+        .sidebar {
+            width: 25%;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-right: 20px;
+        }
+        .main-content {
+            width: 75%;
+        }
+        .menu-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #2980b9;
+            color: white;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .menu-item:hover {
+            background-color: #2574a9;
+        }
+        .content-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #2980b9;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2574a9;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+        th {
+            background-color: #2980b9;
+            color: white;
+        }
+        .user-info {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            margin-top: 10px;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        .menu-item a {
+            color: white;
+            text-decoration: none;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <!-- Sidebar Menu -->
+        <div class="sidebar">
+            <div class="user-info">
+                <h3 style="color: #333;">Welcome, {{ current_user.name }}</h3>
+                <p>Staff Number: {{ current_user.staff_number }}</p>
+            </div>
+            <div class="menu-item">Manage Bookings</div>
+            <div class="menu-item">Upload Course Content</div>
+            <div class="menu-item">Profile Verification</div>
+            <div class="menu-item">View Feedback</div>
+            <div class="menu-item logout-btn">
+                <a href="{{ url_for('auth.sign_out') }}">Sign Out</a>
+            </div>
+        </div>
+
+        <!-- Main Content Section -->
+        <div class="main-content">
+            
+            <!-- Manage Bookings Section -->
+            <div class="content-section">
+                <h2>Manage Bookings</h2>
+                <p>View and update your current student bookings:</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student Name</th>
+                            <th>Module</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Alice Johnson</td>
+                            <td>Data Structures</td>
+                            <td>2025-04-15</td>
+                            <td>14:00 - 15:00</td>
+                            <td>Confirmed</td>
+                        </tr>
+                        <tr>
+                            <td>David Brown</td>
+                            <td>Artificial Intelligence</td>
+                            <td>2025-04-16</td>
+                            <td>10:00 - 11:00</td>
+                            <td>Pending</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Upload Course Content Section -->
+            <div class="content-section">
+                <h2>Upload Course Content</h2>
+                <p>Upload lecture notes, assignments, or other course materials:</p>
+                <form action="/upload-content" method="POST" enctype="multipart/form-data">
+                    <label for="module">Choose Module:</label>
+                    <select id="module" name="module" required>
+                        <option value="Applied Mathematics">Applied Mathematics</option>
+                        <option value="Data Structures">Data Structures</option>
+                        <option value="Research Skills">Research Skills</option>
+                    </select>
+
+                    <label for="file">Select File:</label>
+                    <input type="file" id="file" name="file" required>
+
+                    <label for="description">Description:</label>
+                    <textarea id="description" name="description" rows="4" placeholder="Enter a brief description of the content..."></textarea>
+
+                    <button type="submit">Upload Content</button>
+                </form>
+            </div>
+
+            <!-- Profile Verification Section -->
+            <div class="content-section">
+                <h2>Profile Verification</h2>
+                <p>Status: <strong style="color: green;">Verified</strong></p>
+                <p>If you need to update your profile information, please contact the platform administrator.</p>
+            </div>
+
+            <!-- View Feedback Section -->
+            <div class="content-section">
+                <h2>Student Feedback</h2>
+                <p>View feedback and reviews from your students:</p>
+                <ul style="list-style-type: disc; padding-left: 20px;">
+                    <li>"Great session on Data Structures. Very helpful!" - Alice Johnson</li>
+                    <li>"Clear explanations and well-prepared." - David Brown</li>
+                    <li>"Helped me understand AI concepts better!" - Sarah Lee</li>
+                </ul>
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

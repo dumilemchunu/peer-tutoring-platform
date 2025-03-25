@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Set Your Availability</h2>
+    <form method="POST" action="{{ url_for('main.set_availability') }}">
+        {{ form.hidden_tag() }}
+        
+        <div class="form-group">
+            {{ form.day_of_week.label }}
+            {{ form.day_of_week(class="form-control") }}
+        </div>
+        
+        <div class="form-group">
+            {{ form.start_time.label }}
+            {{ form.start_time(class="form-control") }}
+        </div>
+        
+        <div class="form-group">
+            {{ form.end_time.label }}
+            {{ form.end_time(class="form-control") }}
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Add Availability</button>
+    </form>
+    
+    <h3>Your Current Availability</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Day</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for slot in availability %}
+            <tr>
+                <td>{{ slot.day_of_week }}</td>
+                <td>{{ slot.start_time.strftime('%H:%M') }}</td>
+                <td>{{ slot.end_time.strftime('%H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

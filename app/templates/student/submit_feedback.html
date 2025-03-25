@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Submit Feedback</h2>
+    <p>For your session with {{ booking.tutor.name }} on {{ booking.date.strftime('%Y-%m-%d') }} at {{ booking.start_time.strftime('%H:%M') }}</p>
+    
+    <form method="POST" action="{{ url_for('main.submit_feedback', booking_id=booking.id) }}">
+        {{ form.hidden_tag() }}
+        
+        <div class="form-group">
+            {{ form.rating.label }}
+            {{ form.rating(class="form-control") }}
+        </div>
+        
+        <div class="form-group">
+            {{ form.comment.label }}
+            {{ form.comment(class="form-control") }}
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Submit Feedback</button>
+    </form>
+</div>
+{% endblock %}

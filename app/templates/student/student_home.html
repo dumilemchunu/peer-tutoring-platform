@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Home - Peer Tutoring Platform</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; text-align: center; padding: 50px;">
+
+    <div style="max-width: 700px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);">
+        <h2 style="color: #333;">Welcome to Your Student Dashboard</h2>
+        <p style="color: #777;">Book a tutor and get started with your learning sessions.</p>
+
+        
+        <form action="/submit-booking" method="POST">
+            <h3 style="color: #333;">Create a New Booking</h3>
+            
+    
+            <label for="tutor" style="display: block; text-align: left; margin-top: 15px;">Choose Tutor:</label>
+            <select id="tutor" name="tutor" required 
+                style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px;">
+                <option value="" disabled selected>Select a tutor</option>
+                <option value="Dumile Mcunu">Dumile Mcunu - Applied Mathematics</option>
+                <option value="Kabelo Mathambo">Kabelo Mathambo - Data Structures</option>
+                <option value="Sazi Myeza">Sazi Myeza - Research Skills</option>
+            </select>
+
+            <label for="date" style="display: block; text-align: left;">Select Date:</label>
+            <input type="date" id="date" name="date" required 
+                style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px;">
+            
+            <label for="time" style="display: block; text-align: left;">Select Time:</label>
+            <input type="time" id="time" name="time" required 
+                style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px;">
+            
+        
+            <button type="submit" 
+                style="width: 100%; padding: 10px; background-color: #2980b9; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Book Tutor
+            </button>
+        </form>
+        
+        
+        <h3 style="color: #333; margin-top: 30px;">Your Upcoming Bookings</h3>
+        <table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Tutor</th>
+                    <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Date</th>
+                    <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 8px;">Dumile Mcunu</td>
+                    <td style="padding: 8px;">2025-03-12</td>
+                    <td style="padding: 8px;">14:00</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px;">Dumile Mcunu
+                        <td style="padding: 8px;">2025-03-22</td>
+                    <td style="padding: 8px;">16:00</td>
+                </tr>
+            </tbody>
+        </table>
+

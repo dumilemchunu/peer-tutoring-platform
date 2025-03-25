@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Peer Tutoring Platform</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 50px;">
+
+    <div style="max-width: 1200px; margin: auto;">
+        <h1 style="text-align: center; color: #333;">Admin Dashboard</h1>
+        <p style="text-align: center; color: #777;">Manage modules, tutors, and bookings efficiently.</p>
+
+        <div style="display: flex; gap: 20px;">
+
+            <!-- Left Pane: Admin Controls -->
+            <div style="width: 25%; background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);">
+                <h3 style="color: #333;">Admin Controls</h3>
+                <ul style="list-style-type: none; padding: 0;">
+                    <li style="padding: 8px 0; border-bottom: 1px solid #ccc;"><a href="#module-management" style="color: #2980b9;">Manage Modules</a></li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #ccc;"><a href="#tutor-availability" style="color: #2980b9;">View Tutor Availability</a></li>
+                    <li style="padding: 8px 0;"><a href="#booking-management" style="color: #2980b9;">Manage Bookings</a></li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div style="width: 75%;">
+                <!-- Module Management Section -->
+                <div id="module-management" style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); margin-bottom: 20px;">
+                    <h3 style="color: #333;">Module Management</h3>
+                    <form action="/add-module" method="POST">
+                        <label for="module-name" style="display: block; text-align: left;">Add New Module:</label>
+                        <input type="text" id="module-name" name="module-name" placeholder="Enter module name" required 
+                            style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px;">
+                        
+                        <button type="submit" 
+                            style="width: 100%; padding: 10px; background-color: #2980b9; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                            Add Module
+                        </button>
+                    </form>
+                    <h4 style="color: #333; margin-top: 20px;">Current Modules:</h4>
+                    <ul style="list-style-type: none; padding: 0;">
+                        <li style="padding: 8px 0; border-bottom: 1px solid #ccc;">Applied Mathematics</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid #ccc;">Data Structures</li>
+                        <li style="padding: 8px 0;">Research Skills</li>
+                    </ul>
+                </div>
+
+                <!-- Tutor Availability Section -->
+                <div id="tutor-availability" style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); margin-bottom: 20px;">
+                    <h3 style="color: #333;">Tutor Availability</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Tutor</th>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Available Days</th>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Available Times</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px;">Dumile Mcunu</td>
+                                <td style="padding: 8px;">Mon, Wed, Fri</td>
+                                <td style="padding: 8px;">14:00 - 16:00</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px;">Kabelo Mathambo</td>
+                                <td style="padding: 8px;">Tue, Thu</td>
+                                <td style="padding: 8px;">10:00 - 12:00</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px;">Sazi Myeza</td>
+                                <td style="padding: 8px;">Mon, Fri</td>
+                                <td style="padding: 8px;">15:00 - 17:00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Manage Bookings Section -->
+                <div id="booking-management" style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); margin-bottom: 20px;">
+                    <h3 style="color: #333;">Manage Bookings</h3>
+                    <p style="color: #777;">View and cancel existing bookings:</p>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Tutor</th>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Date</th>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Time</th>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px;">Dumile Mcunu</td>
+                                <td style="padding: 8px;">2025-03-12</td>
+                                <td style="padding: 8px;">14:00</td>
+                                <td style="padding: 8px;">
+                                    <button style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+                                        Cancel
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px;">Dumile Mcunu</td>
+                                <td style="padding: 8px;">2025-03-22</td>
+                                <td style="padding: 8px;">16:00</td>
+                                <td style="padding: 8px;">
+                                    <button style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+                                        Cancel
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Approve or Reject Tutor Applications Section -->
+                <div id="approve-tutors" style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);">
+                    <h3 style="color: #333;">Approve or Reject Tutor Applications</h3>
+                    <p style="color: #777;">Review pending tutor applications and approve or reject them:</p>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Tutor Name</th>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Module Applied</th>
+                                <th style="padding: 8px; background-color: #2980b9; color: white; text-align: left;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px;">Nomfundo Nkosi</td>
+                                <td style="padding: 8px;">Advanced Calculus</td>
+                                <td style="padding: 8px;">
+                                    <button style="background-color: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px;">Approve</button>
+                                    <button style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Reject</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px;">Thabo Mahlangu</td>
+                                <td style="padding: 8px;">Data Structures</td>
+                                <td style="padding: 8px;">
+                                    <button style="background-color: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px;">Approve</button>
+                                    <button style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Reject</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
