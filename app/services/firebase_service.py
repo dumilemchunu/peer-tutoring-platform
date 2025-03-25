@@ -6,50 +6,19 @@ from app.utils.date_utils import parse_date
 
 class FirebaseService:
     def __init__(self):
-        self.demo_mode = False
+        """Initialize Firebase service with proper error handling"""
         try:
-            from flask import current_app
-            if current_app and hasattr(current_app, 'config'):
-                # Check if Firebase is initialized from app config
-                if not current_app.config.get('FIRESTORE_INITIALIZED', True):
-                    print("WARNING: Firebase not initialized, using demo mode")
-                    self.demo_mode = True
-                    self.db = None
-                    return
-                    
-                # Check for demo mode setting in app config
-                if current_app.config.get('DEMO_MODE', False):
-                    print("INFO: Application is running in DEMO MODE as configured")
-                    self.demo_mode = True
-                    self.db = None
-                    return
-                
-            # Try to initialize Firestore client
+            # Get the Firebase app instance
+            self.app = firebase_admin.get_app()
             self.db = firestore.client()
-            print("Firestore client initialized successfully in FirebaseService")
+            print("Firebase service initialized successfully")
         except Exception as e:
-            print(f"ERROR initializing Firestore client in FirebaseService: {e}")
-            import traceback
-            print(f"Detailed error: {traceback.format_exc()}")
-            self.demo_mode = True
-            self.db = None
-            
+            print(f"Error initializing Firebase service: {str(e)}")
+            raise  # Re-raise the exception since Firebase is required
+
     def _ensure_db(self):
-        """Ensure we have a valid Firestore database connection"""
-        if self.demo_mode:
-            print("WARNING: Running in demo mode, no database connection available")
-            return False
-            
-        if not self.db:
-            try:
-                self.db = firestore.client()
-                print("Firestore client re-initialized successfully")
-                return True
-            except Exception as e:
-                print(f"Failed to re-initialize Firestore client: {e}")
-                self.demo_mode = True
-                return False
-        return True
+        """Ensure database connection is available"""
+        return True  # Always return True since we require Firebase
 
     # Booking related operations
     def create_booking(self, student_id, tutor_id, module_code, date, start_time, end_time):
@@ -75,12 +44,6 @@ class FirebaseService:
             print(f"date: {date} ({type(date)})")
             print(f"start_time: {start_time} ({type(start_time)})")
             print(f"end_time: {end_time} ({type(end_time)})")
-            
-            # In demo mode, always return a fake booking ID
-            if self.demo_mode:
-                fake_id = f"demo-booking-{uuid.uuid4()}"
-                print(f"DEMO MODE: Generated fake booking ID: {fake_id}")
-                return fake_id
             
             # Ensure we have a valid database connection
             if not self._ensure_db():
@@ -202,26 +165,21 @@ class FirebaseService:
             return None
 
     def get_module(self, module_code):
-        """
-        Get a module by its code with normalized field names
-        """
+        """Get module data by code"""
         try:
-            module = self.db.collection('modules').document(module_code).get()
-            if module.exists:
-                module_data = module.to_dict()
-                # Normalize field names to handle inconsistencies
-                return {
-                    'id': module.id,
-                    'code': module.id,
-                    'module_code': module.id,
-                    'name': module_data.get('module_name', 'Unknown Module'),
-                    'module_name': module_data.get('module_name', 'Unknown Module'), 
-                    'description': module_data.get('description', ''),
-                    **module_data
-                }
-            return None
+            # Get module document
+            module_doc = self.db.collection('modules').document(str(module_code)).get()
+            
+            if not module_doc.exists:
+                print(f"Module {module_code} not found")
+                return None
+                
+            module_data = module_doc.to_dict()
+            module_data['code'] = module_code  # Ensure code is included in the data
+            return module_data
+            
         except Exception as e:
-            print(f"Error getting module: {e}")
+            print(f"Error getting module {module_code}: {str(e)}")
             return None
 
     def get_module_by_code(self, module_code):
@@ -243,16 +201,6 @@ class FirebaseService:
         """
         try:
             print(f"DEBUG: get_tutor_schedule called with tutor_id={tutor_id}, date={date}")
-            
-            # In demo mode, return demo schedule
-            if self.demo_mode:
-                print("DEMO MODE: Returning demo schedule")
-                return ["09:00 - 10:00", "11:00 - 12:00", "14:00 - 15:00"]
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print("ERROR: No valid database connection available for get_tutor_schedule")
-                return ["09:00 - 10:00", "11:00 - 12:00", "14:00 - 15:00"]  # Return demo schedule
             
             # Check if the date is in the past
             if isinstance(date, str):
@@ -324,21 +272,6 @@ class FirebaseService:
     def get_all_modules(self):
         """Get all available modules with error handling"""
         try:
-            # In demo mode, return demo modules
-            if self.demo_mode:
-                print("DEMO MODE: Returning demo modules")
-                return [
-                    {'id': 'PROG101', 'code': 'PROG101', 'module_code': 'PROG101', 'name': 'Introduction to Programming', 'module_name': 'Introduction to Programming', 'description': 'Learn the foundations of programming logic and syntax.'},
-                    {'id': 'CSCI312', 'code': 'CSCI312', 'module_code': 'CSCI312', 'name': 'Data Structures', 'module_name': 'Data Structures', 'description': 'Study fundamental data structures and algorithms.'},
-                    {'id': 'DB310', 'code': 'DB310', 'module_code': 'DB310', 'name': 'Database Systems', 'module_name': 'Database Systems', 'description': 'Learn database design, SQL, and data management.'},
-                    {'id': 'CHEM120', 'code': 'CHEM120', 'module_code': 'CHEM120', 'name': 'General Chemistry', 'module_name': 'General Chemistry', 'description': 'Introduction to principles of chemistry.'}
-                ]
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print("ERROR: No valid database connection available for get_all_modules")
-                return self._get_demo_modules()
-            
             # Try to fetch modules from Firestore
             modules = []
             modules_ref = self.db.collection('modules').stream()
@@ -354,161 +287,300 @@ class FirebaseService:
                     **module_data
                 })
             
-            # If we found modules, return them
-            if modules:
-                return modules
-            
-            # Otherwise return demo modules
-            return self._get_demo_modules()
+            return modules
             
         except Exception as e:
             print(f"Error getting all modules: {e}")
             import traceback
             print(traceback.format_exc())
-            return self._get_demo_modules()
-        
-    def _get_demo_modules(self):
-        """Return demo modules for fallback"""
-        return [
-            {'id': 'PROG101', 'code': 'PROG101', 'module_code': 'PROG101', 'name': 'Introduction to Programming', 'module_name': 'Introduction to Programming', 'description': 'Learn the foundations of programming logic and syntax.'},
-            {'id': 'CSCI312', 'code': 'CSCI312', 'module_code': 'CSCI312', 'name': 'Data Structures', 'module_name': 'Data Structures', 'description': 'Study fundamental data structures and algorithms.'},
-            {'id': 'DB310', 'code': 'DB310', 'module_code': 'DB310', 'name': 'Database Systems', 'module_name': 'Database Systems', 'description': 'Learn database design, SQL, and data management.'},
-            {'id': 'CHEM120', 'code': 'CHEM120', 'module_code': 'CHEM120', 'name': 'General Chemistry', 'module_name': 'General Chemistry', 'description': 'Introduction to principles of chemistry.'}
-        ]
-    
-    # Tutor-Module assignment operations
+            return []
+
     def get_module_tutors(self, module_code):
         """Get all tutors assigned to a specific module"""
         try:
             print(f"DEBUG: Getting tutors for module {module_code}")
             
-            # In demo mode, return demo tutors
-            if self.demo_mode:
-                print("DEMO MODE: Returning demo tutors")
-                return [
-                    {'id': 'tutor1', 'name': 'Jane Smith', 'email': 'jane@example.com', 'rating': 4.8},
-                    {'id': 'tutor2', 'name': 'John Doe', 'email': 'john@example.com', 'rating': 4.5}
-                ]
+            # Query for module-tutor assignments
+            print(f"DEBUG: Querying module_tutors collection for module {module_code}")
+            assignments = self.db.collection('module_tutors').where('module_code', '==', str(module_code)).stream()
             
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print("ERROR: No valid database connection available for get_module_tutors")
-                return self._get_demo_tutors()
-            
-            try:
-                # Query for module-tutor assignments
-                print(f"DEBUG: Querying module_tutors collection for module {module_code}")
-                assignments = self.db.collection('module_tutors').where('module_code', '==', str(module_code)).stream()
-                
-                tutors = []
-                for assignment in assignments:
-                    try:
-                        assignment_data = assignment.to_dict()
-                        tutor_id = assignment_data.get('tutor_id')
-                        print(f"DEBUG: Found tutor assignment for tutor_id: {tutor_id}")
-                        
-                        if not tutor_id:
-                            print(f"WARNING: Missing tutor_id in assignment {assignment.id}")
-                            continue
-                            
-                        # Get tutor details
-                        tutor = self.get_user_by_id(tutor_id)
-                        if tutor:
-                            tutors.append({
-                                'assignment_id': assignment.id,
-                                'id': tutor_id,
-                                'tutor_id': tutor_id,
-                                'name': tutor.get('name', 'Unknown Tutor'),
-                                'email': tutor.get('email', ''),
-                                'assigned_at': assignment_data.get('assigned_at')
-                            })
-                            print(f"DEBUG: Added tutor {tutor.get('name')} to results")
-                        else:
-                            print(f"WARNING: Could not find tutor with ID {tutor_id}")
-                            
-                    except Exception as assignment_error:
-                        print(f"ERROR processing assignment {assignment.id}: {str(assignment_error)}")
-                        import traceback
-                        print(traceback.format_exc())
+            tutors = []
+            for assignment in assignments:
+                try:
+                    assignment_data = assignment.to_dict()
+                    tutor_id = assignment_data.get('tutor_id')
+                    print(f"DEBUG: Found tutor assignment for tutor_id: {tutor_id}")
+                    
+                    if not tutor_id:
+                        print(f"WARNING: Missing tutor_id in assignment {assignment.id}")
                         continue
-                
-                # If we found tutors, return them
-                if tutors:
-                    print(f"DEBUG: Returning {len(tutors)} tutors found")
-                    return tutors
-                
-                # Otherwise return demo tutors
-                print("DEBUG: No tutors found, returning demo tutors")
-                return self._get_demo_tutors()
-                
-            except Exception as query_error:
-                print(f"ERROR querying module tutors: {str(query_error)}")
-                import traceback
-                print(traceback.format_exc())
-                return self._get_demo_tutors()
+                        
+                    # Get tutor details
+                    tutor = self.get_user_by_id(tutor_id)
+                    if tutor:
+                        tutors.append({
+                            'assignment_id': assignment.id,
+                            'id': tutor_id,
+                            'tutor_id': tutor_id,
+                            'name': tutor.get('name', 'Unknown Tutor'),
+                            'email': tutor.get('email', ''),
+                            'assigned_at': assignment_data.get('assigned_at')
+                        })
+                        print(f"DEBUG: Added tutor {tutor.get('name')} to results")
+                    else:
+                        print(f"WARNING: Could not find tutor with ID {tutor_id}")
+                        
+                except Exception as assignment_error:
+                    print(f"ERROR processing assignment {assignment.id}: {str(assignment_error)}")
+                    import traceback
+                    print(traceback.format_exc())
+                    continue
+            
+            print(f"DEBUG: Returning {len(tutors)} tutors found")
+            return tutors
             
         except Exception as e:
             print(f"ERROR in get_module_tutors: {str(e)}")
             import traceback
             print(traceback.format_exc())
-            return self._get_demo_tutors()
+            return []
+
+    def get_module_content(self, module_code):
+        """Get learning content for a specific module"""
+        try:
+            # Try to fetch module content from Firestore
+            module_code = str(module_code)  # Ensure module_code is a string
+            content_items = []
             
-    def _get_demo_tutors(self):
-        """Return demo tutors for fallback"""
-        return [
-            {'id': 'tutor1', 'name': 'Jane Smith', 'email': 'jane@example.com', 'rating': 4.8},
-            {'id': 'tutor2', 'name': 'John Doe', 'email': 'john@example.com', 'rating': 4.5}
-        ]
+            content_ref = self.db.collection('content').where('module_code', '==', module_code).stream()
+            
+            for item in content_ref:
+                item_data = item.to_dict()
+                content_items.append({
+                    'id': item.id,
+                    'title': item_data.get('title', 'Untitled Content'),
+                    'description': item_data.get('description', ''),
+                    'type': item_data.get('type', 'Document'),
+                    'module_code': module_code,
+                    'uploaded_by': item_data.get('uploaded_by'),
+                    'uploaded_at': item_data.get('uploaded_at'),
+                    'download_url': item_data.get('download_url', '')
+                })
+                
+            return content_items
+            
+        except Exception as e:
+            print(f"Error in get_module_content: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return []
+
+    def get_filtered_content(self, module_code=None, content_type=None, search_query=None, page=1, per_page=12):
+        """
+        Get learning content with filtering options
+        
+        Args:
+            module_code (str, optional): Filter by module code
+            content_type (str, optional): Filter by content type (document, video, etc.)
+            search_query (str, optional): Search in title and description
+            page (int): Page number for pagination
+            per_page (int): Items per page
+            
+        Returns:
+            tuple: (list of content items, total count)
+        """
+        try:
+            # Start with a base query
+            query = self.db.collection('content')
+            
+            # Apply filters
+            if module_code:
+                query = query.where('module_code', '==', str(module_code))
+                
+            if content_type:
+                query = query.where('type', '==', content_type)
+            
+            # Execute query
+            all_items = []
+            for doc in query.stream():
+                item_data = doc.to_dict()
+                
+                # Apply search filter manually (Firestore doesn't support text search directly)
+                if search_query and search_query.strip():
+                    title = item_data.get('title', '').lower()
+                    description = item_data.get('description', '').lower()
+                    if search_query.lower() not in title and search_query.lower() not in description:
+                        continue
+                
+                all_items.append({
+                    'id': doc.id,
+                    'title': item_data.get('title', 'Untitled Content'),
+                    'description': item_data.get('description', ''),
+                    'type': item_data.get('type', 'Document'),
+                    'module_code': item_data.get('module_code', ''),
+                    'uploaded_by': item_data.get('uploaded_by'),
+                    'uploaded_at': item_data.get('uploaded_at'),
+                    'download_url': item_data.get('download_url', '#')
+                })
+            
+            # Calculate total items and apply pagination
+            total_items = len(all_items)
+            
+            # Sort by upload date (newest first)
+            all_items.sort(key=lambda x: x.get('uploaded_at', datetime.min), reverse=True)
+            
+            # Apply pagination
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_items = all_items[start_idx:end_idx]
+            
+            return paginated_items, total_items
+            
+        except Exception as e:
+            print(f"Error in get_filtered_content: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return [], 0
+
+    def get_recent_content(self, limit=5):
+        """Get recent learning content uploads"""
+        try:
+            # Query for recent content
+            content_ref = self.db.collection('content')
+            query = content_ref.order_by('uploaded_at', direction=firestore.Query.DESCENDING).limit(limit)
+            
+            recent_content = []
+            for doc in query.stream():
+                item_data = doc.to_dict()
+                recent_content.append({
+                    'id': doc.id,
+                    'title': item_data.get('title', 'Untitled Content'),
+                    'description': item_data.get('description', ''),
+                    'module_code': item_data.get('module_code', ''),
+                    'module_name': item_data.get('module_name', f"Module {item_data.get('module_code', '')}"),
+                    'uploaded_at': item_data.get('uploaded_at')
+                })
+            
+            return recent_content
+            
+        except Exception as e:
+            print(f"Error getting recent content: {e}")
+            return []
+
+    def count_learning_materials(self):
+        """Count the total number of learning materials available"""
+        try:
+            # Query for all content documents
+            content_ref = self.db.collection('content')
+            return len(list(content_ref.stream()))
+            
+        except Exception as e:
+            print(f"Error counting learning materials: {e}")
+            return 0
+
+    def get_student_total_hours(self, student_id):
+        """Calculate the total tutoring hours for a student"""
+        try:
+            # Query for completed sessions
+            sessions_ref = self.db.collection('sessions')
+            query = sessions_ref.where('student_id', '==', str(student_id)) \
+                               .where('status', '==', 'Completed')
+            
+            total_hours = 0
+            for doc in query.stream():
+                session_data = doc.to_dict()
+                start_time = session_data.get('start_time')
+                end_time = session_data.get('end_time')
+                
+                if start_time and end_time:
+                    # Calculate duration in hours
+                    start = datetime.strptime(start_time, '%H:%M')
+                    end = datetime.strptime(end_time, '%H:%M')
+                    duration = (end - start).total_seconds() / 3600
+                    total_hours += duration
+            
+            return round(total_hours, 1)
+            
+        except Exception as e:
+            print(f"Error calculating total hours: {e}")
+            return 0
+
+    def get_system_statistics(self):
+        """Return system statistics for admin dashboard"""
+        try:
+            stats = {}
+            
+            # Count users by role
+            users_ref = self.db.collection('users')
+            all_users = list(users_ref.stream())
+            stats['total_users'] = len(all_users)
+            
+            # Count by role
+            users_by_role = {'student': 0, 'tutor': 0, 'admin': 0}
+            for user in all_users:
+                user_data = user.to_dict()
+                role = user_data.get('role', 'unknown')
+                if role in users_by_role:
+                    users_by_role[role] += 1
+            
+            stats['total_students'] = users_by_role['student']
+            stats['total_tutors'] = users_by_role['tutor']
+            stats['total_admins'] = users_by_role['admin']
+            
+            # Count sessions
+            sessions_ref = self.db.collection('sessions')
+            stats['total_sessions'] = len(list(sessions_ref.stream()))
+            
+            # Count modules
+            modules_ref = self.db.collection('modules')
+            stats['total_modules'] = len(list(modules_ref.stream()))
+            
+            # Estimate active users (sessions in the last 30 days)
+            thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
+            recent_sessions = list(sessions_ref.where('created_at', '>=', thirty_days_ago).stream())
+            active_user_ids = set()
+            for session in recent_sessions:
+                session_data = session.to_dict()
+                if 'student_id' in session_data:
+                    active_user_ids.add(session_data['student_id'])
+                if 'tutor_id' in session_data:
+                    active_user_ids.add(session_data['tutor_id'])
+            
+            stats['active_users'] = len(active_user_ids)
+            
+            return stats
+            
+        except Exception as e:
+            print(f"Error fetching system statistics: {str(e)}")
+            return {
+                'total_users': 0,
+                'total_students': 0,
+                'total_tutors': 0,
+                'total_admins': 0,
+                'total_sessions': 0,
+                'total_modules': 0,
+                'active_users': 0
+            }
 
     # User management operations
     def get_user_by_id(self, user_id):
-        """Retrieve user by ID"""
+        """Get user data by ID"""
         try:
-            print(f"DEBUG: Getting user with ID {user_id}")
+            # Get user document
+            user_doc = self.db.collection('users').document(str(user_id)).get()
             
-            # In demo mode, return demo user
-            if self.demo_mode:
-                print("DEMO MODE: Returning demo user")
-                return {
-                    'id': user_id,
-                    'name': 'Demo User',
-                    'email': 'demo@example.com',
-                    'role': 'student'
-                }
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print("ERROR: No valid database connection available for get_user_by_id")
-                return self._get_demo_user(user_id)
-            
-            try:
-                # Get user document
-                print(f"DEBUG: Querying users collection for ID {user_id}")
-                user_doc = self.db.collection('users').document(str(user_id)).get()
+            if not user_doc.exists:
+                print(f"User {user_id} not found")
+                return None
                 
-                if user_doc.exists:
-                    user_data = user_doc.to_dict()
-                    print(f"DEBUG: Found user {user_data.get('name', 'Unknown')}")
-                    return {
-                        'id': user_doc.id,
-                        **user_data
-                    }
-                else:
-                    print(f"WARNING: No user found with ID {user_id}")
-                    return None
-                    
-            except Exception as query_error:
-                print(f"ERROR querying user: {str(query_error)}")
-                import traceback
-                print(traceback.format_exc())
-                return self._get_demo_user(user_id)
-                
+            user_data = user_doc.to_dict()
+            user_data['id'] = user_id  # Ensure ID is included in the data
+            return user_data
+            
         except Exception as e:
-            print(f"ERROR in get_user_by_id: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return self._get_demo_user(user_id)
-            
+            print(f"Error getting user {user_id}: {str(e)}")
+            return None
+        
     def _get_demo_user(self, user_id):
         """Return demo user for fallback"""
         return {
@@ -544,618 +616,73 @@ class FirebaseService:
             print(f"Error creating notification: {e}")
 
     def get_student_upcoming_sessions(self, student_id):
-        """
-        Get all upcoming tutoring sessions for a specific student
-        """
+        """Get upcoming tutoring sessions for a student"""
         try:
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print("ERROR: No valid database connection available for get_student_upcoming_sessions")
-                return self._get_fallback_sessions()
-            
             # Get current date
             current_date = datetime.now().date()
             current_date_str = current_date.strftime('%Y-%m-%d')
             
-            # Try to get real sessions first
-            try:
-                student_id = str(student_id)  # Ensure student_id is a string
-                
-                # Query for upcoming sessions
-                sessions_ref = self.db.collection('sessions')
-                query = sessions_ref.where('student_id', '==', student_id) \
-                                   .where('status', '==', 'Scheduled')
-                
-                sessions = []
-                for doc in query.stream():
-                    session_data = doc.to_dict()
-                    session_date_str = session_data.get('date')
-                    
-                    # Skip sessions in the past
-                    if session_date_str < current_date_str:
-                        continue
-                        
-                    # Convert date string to datetime object
-                    session_date = parse_date(session_date_str)
-                    if not session_date:
-                        continue
-                        
-                    # Get tutor name if possible
-                    tutor_id = session_data.get('tutor_id')
-                    tutor_name = "Unknown Tutor"
-                    try:
-                        tutor = self.get_user_by_id(tutor_id)
-                        if tutor:
-                            tutor_name = tutor.get('name', 'Unknown Tutor')
-                    except:
-                        pass  # Use default tutor name
-                    
-                    # Get module name if possible
-                    module_code = session_data.get('module_code')
-                    module_name = f"Module {module_code}"
-                    try:
-                        module = self.get_module(module_code)
-                        if module:
-                            module_name = module.get('name', module_name)
-                    except:
-                        pass  # Use default module name
-                    
-                    sessions.append({
-                        'id': doc.id,
-                        'module_code': module_code,
-                        'module_name': module_name,
-                        'tutor_id': tutor_id,
-                        'tutor_name': tutor_name,
-                        'date': session_date,
-                        'start_time': session_data.get('start_time'),
-                        'end_time': session_data.get('end_time'),
-                        'status': session_data.get('status')
-                    })
-                
-                # If we found real sessions, return them
-                if sessions:
-                    return sorted(sessions, key=lambda s: (s['date'].strftime('%Y-%m-%d') if s['date'] else '', s['start_time']))
-            except Exception as query_error:
-                print(f"Error querying sessions: {query_error}")
-                # Continue to fallback data
+            # Query for upcoming sessions
+            sessions_ref = self.db.collection('sessions')
+            query = sessions_ref.where('student_id', '==', str(student_id)) \
+                               .where('status', '==', 'Scheduled')
             
-            # Return fallback sessions
-            return self._get_fallback_sessions(current_date)
+            sessions = []
+            for doc in query.stream():
+                session_data = doc.to_dict()
+                session_date_str = session_data.get('date')
+                
+                # Skip past sessions
+                if session_date_str < current_date_str:
+                    continue
+                    
+                # Convert date string to datetime object
+                session_date = parse_date(session_date_str)
+                if not session_date:
+                    continue
+                    
+                # Get tutor name
+                tutor_id = session_data.get('tutor_id')
+                tutor_name = "Unknown Tutor"
+                try:
+                    tutor = self.get_user_by_id(tutor_id)
+                    if tutor:
+                        tutor_name = tutor.get('name', 'Unknown Tutor')
+                except:
+                    pass  # Use default tutor name
+                
+                # Get module name
+                module_code = session_data.get('module_code')
+                module_name = f"Module {module_code}"
+                try:
+                    module = self.get_module(module_code)
+                    if module:
+                        module_name = module.get('name', module_name)
+                except:
+                    pass  # Use default module name
+                
+                sessions.append({
+                    'id': doc.id,
+                    'module_code': module_code,
+                    'module_name': module_name,
+                    'tutor_id': tutor_id,
+                    'tutor_name': tutor_name,
+                    'date': session_date,
+                    'start_time': session_data.get('start_time'),
+                    'end_time': session_data.get('end_time'),
+                    'status': session_data.get('status')
+                })
+            
+            # Sort sessions by date and start time
+            return sorted(sessions, key=lambda s: (s['date'].strftime('%Y-%m-%d') if s['date'] else '', s['start_time']))
             
         except Exception as e:
-            print(f"Error getting upcoming sessions: {e}")
-            return self._get_fallback_sessions()
-        
-    def _get_fallback_sessions(self, current_date=None):
-        """Generate fallback session data for demo purposes"""
-        if not current_date:
-            current_date = datetime.now().date()
-        
-        return [
-            {
-                'id': 'session1',
-                'module_code': 'PROG101',
-                'module_name': 'Introduction to Programming',
-                'tutor_id': 'tutor1',
-                'tutor_name': 'Jane Smith',
-                'date': datetime.now() + timedelta(days=2),
-                'start_time': '10:00',
-                'end_time': '11:00',
-                'status': 'Scheduled'
-            },
-            {
-                'id': 'session2',
-                'module_code': 'MATH201',
-                'module_name': 'Advanced Mathematics',
-                'tutor_id': 'tutor2',
-                'tutor_name': 'John Doe',
-                'date': datetime.now() + timedelta(days=5),
-                'start_time': '14:00',
-                'end_time': '15:00',
-                'status': 'Scheduled'
-            }
-        ]
-
-    def get_recent_content(self, limit=5):
-        """Get recent learning content uploads"""
-        try:
-            # Return some default content for demo purposes
-            return [
-                {
-                    'id': 'content1',
-                    'title': 'Introduction to Python',
-                    'description': 'Learn the basics of Python programming',
-                    'module_code': 'PROG101',
-                    'module_name': 'Introduction to Programming',
-                    'uploaded_at': datetime.now() - timedelta(days=2)
-                },
-                {
-                    'id': 'content2',
-                    'title': 'Advanced Calculus',
-                    'description': 'Deep dive into calculus principles',
-                    'module_code': 'MATH201',
-                    'module_name': 'Advanced Mathematics',
-                    'uploaded_at': datetime.now() - timedelta(days=5)
-                }
-            ]
-        except Exception as e:
-            print(f"Error getting recent content: {e}")
+            print(f"Error getting upcoming sessions: {str(e)}")
             return []
 
-    def count_learning_materials(self):
-        """Count the total number of learning materials available"""
-        try:
-            # Return a default count for demo purposes
-            return 25
-        except Exception as e:
-            print(f"Error counting learning materials: {e}")
-            return 0
-
-    def get_student_total_hours(self, student_id):
-        """Calculate the total tutoring hours for a student"""
-        try:
-            # Return a default value for demo purposes
-            return 8.5
-        except Exception as e:
-            print(f"Error calculating total hours: {e}")
-            return 0
-
-    def get_module_content(self, module_code):
-        """Get learning content for a specific module"""
-        try:
-            # In demo mode, return demo content
-            if self.demo_mode:
-                print(f"DEMO MODE: Returning demo content for module {module_code}")
-                return self._get_demo_content(module_code)
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print(f"ERROR: No valid database connection available for get_module_content")
-                return self._get_demo_content(module_code)
-            
-            # Try to fetch module content from Firestore
-            module_code = str(module_code)  # Ensure module_code is a string
-            content_items = []
-            
-            try:
-                content_ref = self.db.collection('content').where('module_code', '==', module_code).stream()
-                
-                for item in content_ref:
-                    item_data = item.to_dict()
-                    content_items.append({
-                        'id': item.id,
-                        'title': item_data.get('title', 'Untitled Content'),
-                        'description': item_data.get('description', ''),
-                        'type': item_data.get('type', 'Document'),
-                        'module_code': module_code,
-                        'uploaded_by': item_data.get('uploaded_by'),
-                        'uploaded_at': item_data.get('uploaded_at'),
-                        'download_url': item_data.get('download_url', '')
-                    })
-                    
-                return content_items
-            except Exception as e:
-                print(f"Error fetching module content: {str(e)}")
-                # Continue to fallback data
-            
-            # If we couldn't get real content, return demo content
-            return self._get_demo_content(module_code)
-            
-        except Exception as e:
-            print(f"Error in get_module_content: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return self._get_demo_content(module_code)
-        
-    def _get_demo_content(self, module_code=None):
-        """Return demo content for fallback"""
-        current_time = datetime.now()
-        
-        if module_code == 'PROG101':
-            return [
-                {
-                    'id': 'content-1',
-                    'title': 'Introduction to Programming Concepts',
-                    'description': 'Learn the basic concepts of programming logic',
-                    'type': 'Document',
-                    'module_code': 'PROG101',
-                    'uploaded_by': 'tutor1',
-                    'uploaded_at': current_time - timedelta(days=5),
-                    'download_url': '#'
-                },
-                {
-                    'id': 'content-2',
-                    'title': 'Getting Started with Python',
-                    'description': 'A beginner\'s guide to Python programming',
-                    'type': 'Video',
-                    'module_code': 'PROG101',
-                    'uploaded_by': 'tutor2',
-                    'uploaded_at': current_time - timedelta(days=3),
-                    'download_url': '#'
-                }
-            ]
-        elif module_code == 'CSCI312':
-            return [
-                {
-                    'id': 'content-3',
-                    'title': 'Advanced Data Structures',
-                    'description': 'Learn about complex data structures',
-                    'type': 'Document',
-                    'module_code': 'CSCI312',
-                    'uploaded_by': 'tutor1',
-                    'uploaded_at': current_time - timedelta(days=7),
-                    'download_url': '#'
-                }
-            ]
-        else:
-            return [
-                {
-                    'id': f'content-demo-{uuid.uuid4()}',
-                    'title': f'Sample Content for {module_code or "All Modules"}',
-                    'description': 'This is sample content for demonstration purposes',
-                    'type': 'Document',
-                    'module_code': module_code or 'DEMO101',
-                    'uploaded_by': 'demo-tutor',
-                    'uploaded_at': current_time - timedelta(days=2),
-                    'download_url': '#'
-                }
-            ]
-
-    def get_filtered_content(self, module_code=None, content_type=None, search_query=None, page=1, per_page=12):
-        """
-        Get learning content with filtering options
-        
-        Args:
-            module_code (str, optional): Filter by module code
-            content_type (str, optional): Filter by content type (document, video, etc.)
-            search_query (str, optional): Search in title and description
-            page (int): Page number for pagination
-            per_page (int): Items per page
-            
-        Returns:
-            tuple: (list of content items, total count)
-        """
-        try:
-            # In demo mode, return demo filtered content
-            if self.demo_mode:
-                print(f"DEMO MODE: Returning demo filtered content")
-                return self._get_filtered_demo_content(module_code, content_type, search_query, page, per_page)
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print(f"ERROR: No valid database connection available for get_filtered_content")
-                return self._get_filtered_demo_content(module_code, content_type, search_query, page, per_page)
-            
-            # Try to fetch content from Firestore
-            try:
-                # Start with a base query
-                query = self.db.collection('content')
-                
-                # Apply filters
-                if module_code:
-                    query = query.where('module_code', '==', str(module_code))
-                    
-                if content_type:
-                    query = query.where('type', '==', content_type)
-                
-                # Execute query
-                all_items = []
-                for doc in query.stream():
-                    item_data = doc.to_dict()
-                    
-                    # Apply search filter manually (Firestore doesn't support text search directly)
-                    if search_query and search_query.strip():
-                        title = item_data.get('title', '').lower()
-                        description = item_data.get('description', '').lower()
-                        if search_query.lower() not in title and search_query.lower() not in description:
-                            continue
-                    
-                    all_items.append({
-                        'id': doc.id,
-                        'title': item_data.get('title', 'Untitled Content'),
-                        'description': item_data.get('description', ''),
-                        'type': item_data.get('type', 'Document'),
-                        'module_code': item_data.get('module_code', ''),
-                        'uploaded_by': item_data.get('uploaded_by'),
-                        'uploaded_at': item_data.get('uploaded_at'),
-                        'download_url': item_data.get('download_url', '#')
-                    })
-                
-                # Calculate total items and apply pagination
-                total_items = len(all_items)
-                
-                # Sort by upload date (newest first)
-                all_items.sort(key=lambda x: x.get('uploaded_at', datetime.min), reverse=True)
-                
-                # Apply pagination
-                start_idx = (page - 1) * per_page
-                end_idx = start_idx + per_page
-                paginated_items = all_items[start_idx:end_idx]
-                
-                return paginated_items, total_items
-                
-            except Exception as e:
-                print(f"Error fetching filtered content: {str(e)}")
-                import traceback
-                print(traceback.format_exc())
-                # Continue to fallback data
-            
-            # Return demo data if Firestore query fails
-            return self._get_filtered_demo_content(module_code, content_type, search_query, page, per_page)
-            
-        except Exception as e:
-            print(f"Error in get_filtered_content: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return self._get_filtered_demo_content(module_code, content_type, search_query, page, per_page)
-
-    def _get_filtered_demo_content(self, module_code=None, content_type=None, search_query=None, page=1, per_page=12):
-        """Generate demo filtered content data for fallback"""
-        current_time = datetime.now()
-        
-        # Base demo content
-        all_items = [
-            {
-                'id': 'content-1',
-                'title': 'Introduction to Programming Concepts',
-                'description': 'Learn the basic concepts of programming logic',
-                'type': 'Document',
-                'module_code': 'PROG101',
-                'uploaded_by': 'tutor1',
-                'uploaded_at': current_time - timedelta(days=5),
-                'download_url': '#'
-            },
-            {
-                'id': 'content-2',
-                'title': 'Getting Started with Python',
-                'description': 'A beginner\'s guide to Python programming',
-                'type': 'Video',
-                'module_code': 'PROG101',
-                'uploaded_by': 'tutor2',
-                'uploaded_at': current_time - timedelta(days=3),
-                'download_url': '#'
-            },
-            {
-                'id': 'content-3',
-                'title': 'Advanced Data Structures',
-                'description': 'Learn about complex data structures',
-                'type': 'Document',
-                'module_code': 'CSCI312',
-                'uploaded_by': 'tutor1',
-                'uploaded_at': current_time - timedelta(days=7),
-                'download_url': '#'
-            },
-            {
-                'id': 'content-4',
-                'title': 'Database Design Principles',
-                'description': 'Fundamentals of database design and normalization',
-                'type': 'Document',
-                'module_code': 'DB310',
-                'uploaded_by': 'tutor3',
-                'uploaded_at': current_time - timedelta(days=10),
-                'download_url': '#'
-            },
-            {
-                'id': 'content-5',
-                'title': 'SQL Tutorial Videos',
-                'description': 'Learn SQL through practical examples',
-                'type': 'Video',
-                'module_code': 'DB310',
-                'uploaded_by': 'tutor2',
-                'uploaded_at': current_time - timedelta(days=2),
-                'download_url': '#'
-            },
-            {
-                'id': 'content-6',
-                'title': 'Chemistry Fundamentals',
-                'description': 'Introduction to basic chemistry principles',
-                'type': 'Document',
-                'module_code': 'CHEM120',
-                'uploaded_by': 'tutor4',
-                'uploaded_at': current_time - timedelta(days=15),
-                'download_url': '#'
-            }
-        ]
-        
-        # Apply filters
-        filtered_items = all_items
-        
-        if module_code:
-            filtered_items = [item for item in filtered_items if item['module_code'] == module_code]
-            
-        if content_type:
-            filtered_items = [item for item in filtered_items if item['type'] == content_type]
-            
-        if search_query and search_query.strip():
-            search_term = search_query.lower()
-            filtered_items = [
-                item for item in filtered_items 
-                if search_term in item['title'].lower() or search_term in item['description'].lower()
-            ]
-        
-        # Get total before pagination
-        total_items = len(filtered_items)
-        
-        # Apply pagination
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        paginated_items = filtered_items[start_idx:end_idx]
-        
-        return paginated_items, total_items 
-
-    def get_content(self, content_id):
-        """Get content details by ID"""
-        try:
-            # In demo mode, return demo content
-            if self.demo_mode:
-                print(f"DEMO MODE: Returning demo content for ID {content_id}")
-                return {
-                    'id': content_id,
-                    'title': 'Demo Content',
-                    'description': 'This is demonstration content',
-                    'type': 'Document',
-                    'module_code': 'DEMO101',
-                    'uploaded_by': 'demo-tutor',
-                    'uploaded_at': datetime.now() - timedelta(days=2),
-                    'download_url': '#'
-                }
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                print(f"ERROR: No valid database connection available for get_content")
-                return None
-            
-            # Try to fetch content from Firestore
-            content_doc = self.db.collection('content').document(content_id).get()
-            if content_doc.exists:
-                content_data = content_doc.to_dict()
-                return {
-                    'id': content_doc.id,
-                    'title': content_data.get('title', 'Untitled Content'),
-                    'description': content_data.get('description', ''),
-                    'type': content_data.get('type', 'Document'),
-                    'module_code': content_data.get('module_code', ''),
-                    'uploaded_by': content_data.get('uploaded_by'),
-                    'uploaded_at': content_data.get('uploaded_at'),
-                    'download_url': content_data.get('download_url', '#')
-                }
-            return None
-        except Exception as e:
-            print(f"Error getting content: {str(e)}")
-            return None
-        
-    def get_session(self, session_id):
-        """Get details of a specific tutoring session"""
-        try:
-            # In demo mode, return demo session
-            if self.demo_mode:
-                return {
-                    'id': session_id,
-                    'module_code': 'PROG101',
-                    'module_name': 'Introduction to Programming',
-                    'tutor_id': 'tutor1',
-                    'tutor_name': 'Jane Smith',
-                    'student_id': 'student1',
-                    'date': datetime.now() + timedelta(days=2),
-                    'start_time': '10:00',
-                    'end_time': '11:00',
-                    'status': 'Scheduled',
-                    'location': 'Online',
-                    'notes': 'Demo session notes'
-                }
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                return None
-            
-            # Get session document
-            session_ref = self.db.collection('sessions').document(str(session_id))
-            session_doc = session_ref.get()
-            
-            if not session_doc.exists:
-                return None
-                
-            session_data = session_doc.to_dict()
-            
-            # Convert date string to datetime object
-            session_date = parse_date(session_data.get('date'))
-            
-            # Get tutor name
-            tutor_id = session_data.get('tutor_id')
-            tutor_name = "Unknown Tutor"
-            try:
-                tutor = self.get_user_by_id(tutor_id)
-                if tutor:
-                    tutor_name = tutor.get('name', 'Unknown Tutor')
-            except:
-                pass  # Use default tutor name
-            
-            # Get module name
-            module_code = session_data.get('module_code')
-            module_name = f"Module {module_code}"
-            try:
-                module = self.get_module(module_code)
-                if module:
-                    module_name = module.get('name', module_name)
-            except:
-                pass  # Use default module name
-            
-            # Return session data with names included
-            return {
-                'id': session_doc.id,
-                'module_code': module_code,
-                'module_name': module_name,
-                'tutor_id': tutor_id,
-                'tutor_name': tutor_name,
-                'student_id': session_data.get('student_id'),
-                'date': session_date,
-                'start_time': session_data.get('start_time'),
-                'end_time': session_data.get('end_time'),
-                'status': session_data.get('status', 'Unknown'),
-                'location': session_data.get('location', 'Online'),
-                'notes': session_data.get('notes', ''),
-                'has_feedback': session_data.get('has_feedback', False)
-            }
-            
-        except Exception as e:
-            print(f"Error getting session details: {e}")
-            return None
-        
-    def log_content_download(self, user_id, content_id):
-        """Log when a user downloads content"""
-        try:
-            if self.demo_mode or not self._ensure_db():
-                print(f"DEMO MODE: Logging download for user {user_id}, content {content_id}")
-                return True
-            
-            # Create a log entry
-            log_ref = self.db.collection('content_downloads').document()
-            log_ref.set({
-                'user_id': str(user_id),
-                'content_id': str(content_id),
-                'timestamp': firestore.SERVER_TIMESTAMP
-            })
-            return True
-        except Exception as e:
-            print(f"Error logging content download: {str(e)}")
-            return False
-        
     def get_student_past_sessions(self, student_id):
         """Get past tutoring sessions for a student"""
         try:
-            # In demo mode, return demo sessions
-            if self.demo_mode:
-                return [
-                    {
-                        'id': 'past1',
-                        'module_code': 'PROG101',
-                        'module_name': 'Introduction to Programming',
-                        'tutor_id': 'tutor1',
-                        'tutor_name': 'Jane Smith',
-                        'date': datetime.now() - timedelta(days=2),
-                        'start_time': '10:00',
-                        'end_time': '11:00',
-                        'status': 'Completed',
-                        'has_feedback': False
-                    },
-                    {
-                        'id': 'past2',
-                        'module_code': 'MATH201',
-                        'module_name': 'Advanced Mathematics',
-                        'tutor_id': 'tutor2',
-                        'tutor_name': 'John Doe',
-                        'date': datetime.now() - timedelta(days=5),
-                        'start_time': '14:00',
-                        'end_time': '15:00',
-                        'status': 'Completed',
-                        'has_feedback': True
-                    }
-                ]
-            
-            # Ensure we have a valid database connection
-            if not self._ensure_db():
-                return []
-            
             # Get current date
             current_date = datetime.now().date()
             current_date_str = current_date.strftime('%Y-%m-%d')
@@ -1216,17 +743,12 @@ class FirebaseService:
             return sorted(sessions, key=lambda s: (s['date'].strftime('%Y-%m-%d') if s['date'] else '', s['start_time']), reverse=True)
             
         except Exception as e:
-            print(f"Error getting past sessions: {e}")
+            print(f"Error getting past sessions: {str(e)}")
             return []
         
     def submit_feedback(self, session_id, student_id, tutor_id, rating, feedback, was_helpful, improvement=''):
         """Submit feedback for a tutoring session"""
         try:
-            # In demo mode, just return success
-            if self.demo_mode or not self._ensure_db():
-                print(f"DEMO MODE: Submitting feedback for session {session_id}")
-                return True
-            
             # Create the feedback document
             feedback_ref = self.db.collection('feedback').document()
             
@@ -1268,11 +790,6 @@ class FirebaseService:
     def store_document_reference(self, user_id, doc_type, file_content, file_name, file_size):
         """Store a document reference in Firestore"""
         try:
-            # In demo mode, return a fake document ID
-            if self.demo_mode or not self._ensure_db():
-                print(f"DEMO MODE: Storing document reference for user {user_id}")
-                return f"demo-document-{uuid.uuid4()}"
-            
             # Create document reference
             doc_ref = self.db.collection('documents').document()
             
@@ -1296,11 +813,6 @@ class FirebaseService:
     def cancel_session(self, session_id):
         """Cancel a booked session"""
         try:
-            # In demo mode, return success
-            if self.demo_mode or not self._ensure_db():
-                print(f"DEMO MODE: Cancelling session {session_id}")
-                return True
-            
             # Update the session status
             session_ref = self.db.collection('sessions').document(session_id)
             session_ref.update({
@@ -1335,12 +847,6 @@ class FirebaseService:
             print(f"module_code: {module_code}, date: {date}")
             print(f"time: {start_time} - {end_time}")
             print(f"notes: {notes[:50]}{'...' if len(notes) > 50 else ''}")
-            
-            # In demo mode, return a fake reservation ID
-            if self.demo_mode:
-                fake_id = f"demo-reservation-{uuid.uuid4()}"
-                print(f"DEMO MODE: Generated fake reservation ID: {fake_id}")
-                return fake_id
             
             # Ensure we have a valid database connection
             if not self._ensure_db():
@@ -1442,12 +948,6 @@ class FirebaseService:
         """
         try:
             print(f"DEBUG: confirm_reservation called with ID: {reservation_id}")
-            
-            # In demo mode, return a fake session ID
-            if self.demo_mode:
-                fake_id = f"demo-session-{uuid.uuid4()}"
-                print(f"DEMO MODE: Generated fake session ID: {fake_id}")
-                return fake_id
             
             # Handle demo reservations
             if reservation_id.startswith(('demo-', 'fallback-')):
@@ -1895,74 +1395,3 @@ class FirebaseService:
         except Exception as e:
             print(f"Error seeding bookings: {str(e)}")
             return False 
-
-    def get_system_statistics(self):
-        """Return system statistics for admin dashboard"""
-        try:
-            if self.demo_mode or not self._ensure_db():
-                # Return demo statistics
-                return {
-                    'total_users': 15,
-                    'total_students': 10,
-                    'total_tutors': 4,
-                    'total_admins': 1,
-                    'total_sessions': 23,
-                    'total_modules': 12,
-                    'active_users': 8
-                }
-            
-            # If we have a valid database connection, fetch real statistics
-            stats = {}
-            
-            # Count users by role
-            users_ref = self.db.collection('users')
-            all_users = list(users_ref.stream())
-            stats['total_users'] = len(all_users)
-            
-            # Count by role
-            users_by_role = {'student': 0, 'tutor': 0, 'admin': 0}
-            for user in all_users:
-                user_data = user.to_dict()
-                role = user_data.get('role', 'unknown')
-                if role in users_by_role:
-                    users_by_role[role] += 1
-            
-            stats['total_students'] = users_by_role['student']
-            stats['total_tutors'] = users_by_role['tutor']
-            stats['total_admins'] = users_by_role['admin']
-            
-            # Count sessions
-            sessions_ref = self.db.collection('sessions')
-            stats['total_sessions'] = len(list(sessions_ref.stream()))
-            
-            # Count modules
-            modules_ref = self.db.collection('modules')
-            stats['total_modules'] = len(list(modules_ref.stream()))
-            
-            # Estimate active users (sessions in the last 30 days)
-            thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
-            recent_sessions = list(sessions_ref.where('created_at', '>=', thirty_days_ago).stream())
-            active_user_ids = set()
-            for session in recent_sessions:
-                session_data = session.to_dict()
-                if 'student_id' in session_data:
-                    active_user_ids.add(session_data['student_id'])
-                if 'tutor_id' in session_data:
-                    active_user_ids.add(session_data['tutor_id'])
-            
-            stats['active_users'] = len(active_user_ids)
-            
-            return stats
-            
-        except Exception as e:
-            print(f"Error fetching system statistics: {str(e)}")
-            # Return default demo statistics on error
-            return {
-                'total_users': 15,
-                'total_students': 10,
-                'total_tutors': 4,
-                'total_admins': 1,
-                'total_sessions': 23, 
-                'total_modules': 12,
-                'active_users': 8
-            } 
