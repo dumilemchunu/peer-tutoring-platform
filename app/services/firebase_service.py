@@ -1490,4 +1490,163 @@ class FirebaseService:
             
         except Exception as e:
             print(f"Error getting all users: {str(e)}")
-            return [] 
+            return []
+
+    def approve_tutor_application(self, application_id):
+        """
+        Approve a tutor application and update the user's role
+        
+        Args:
+            application_id (str): The ID of the tutor application
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Get the application
+            app_ref = self.db.collection('tutor_applications').document(str(application_id))
+            app = app_ref.get()
+            
+            if not app.exists:
+                print(f"Application {application_id} not found")
+                return False
+                
+            app_data = app.to_dict()
+            user_id = app_data.get('user_id')
+            
+            if not user_id:
+                print("Application has no associated user ID")
+                return False
+            
+            # Update application status
+            app_ref.update({
+                'status': 'Approved',
+                'approved_at': firestore.SERVER_TIMESTAMP,
+                'processed_by': 'admin'  # Could be replaced with actual admin ID
+            })
+            
+            # Update user role to tutor
+            user_ref = self.db.collection('users').document(str(user_id))
+            user_ref.update({
+                'role': 'tutor',
+                'tutor_since': firestore.SERVER_TIMESTAMP,
+                'approved_modules': app_data.get('modules', []),
+                'qualifications': app_data.get('qualifications', ''),
+                'experience': app_data.get('experience', '')
+            })
+            
+            # Create notification for the user
+            self._create_notification(
+                user_id=user_id,
+                title="Tutor Application Approved",
+                message="Congratulations! Your application to become a tutor has been approved.",
+                type="application_status"
+            )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error approving tutor application: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return False
+            
+    def reject_tutor_application(self, application_id, reason=''):
+        """
+        Reject a tutor application
+        
+        Args:
+            application_id (str): The ID of the tutor application
+            reason (str, optional): Reason for rejection
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Get the application
+            app_ref = self.db.collection('tutor_applications').document(str(application_id))
+            app = app_ref.get()
+            
+            if not app.exists:
+                print(f"Application {application_id} not found")
+                return False
+                
+            app_data = app.to_dict()
+            user_id = app_data.get('user_id')
+            
+            if not user_id:
+                print("Application has no associated user ID")
+                return False
+            
+            # Update application status
+            app_ref.update({
+                'status': 'Rejected',
+                'rejected_at': firestore.SERVER_TIMESTAMP,
+                'rejection_reason': reason,
+                'processed_by': 'admin'  # Could be replaced with actual admin ID
+            })
+            
+            # Create notification for the user
+            message = "Your application to become a tutor has been rejected."
+            if reason:
+                message += f" Reason: {reason}"
+                
+            self._create_notification(
+                user_id=user_id,
+                title="Tutor Application Status Update",
+                message=message,
+                type="application_status"
+            )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error rejecting tutor application: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return False
+
+    def add_module(self, module_code, module_name, description):
+        """
+        Add a new module to the system
+        
+        Args:
+            module_code (str): Unique module code
+            module_name (str): Name of the module
+            description (str): Module description
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Validate inputs
+            if not all([module_code, module_name, description]):
+                print("Missing required fields")
+                return False
+                
+            # Check if module already exists
+            module_ref = self.db.collection('modules').document(str(module_code))
+            if module_ref.get().exists:
+                print(f"Module {module_code} already exists")
+                return False
+                
+            # Create module document
+            module_data = {
+                'module_code': str(module_code),
+                'module_name': module_name,
+                'description': description,
+                'created_at': firestore.SERVER_TIMESTAMP,
+                'updated_at': firestore.SERVER_TIMESTAMP,
+                'is_active': True
+            }
+            
+            # Save to Firestore
+            module_ref.set(module_data)
+            print(f"Module {module_code} created successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error adding module: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            return False 
