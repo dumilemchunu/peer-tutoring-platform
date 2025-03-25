@@ -5,30 +5,52 @@ import uuid
 import base64
 from app.utils.date_utils import parse_date
 from typing import Dict, List, Optional, Tuple, Any
+import os
 
 class FirebaseService:
     _instance = None
+    _initialized = False
     
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(FirebaseService, cls).__new__(cls)
-            cls._instance._initialized = False
         return cls._instance
     
     def __init__(self):
-        """Initialize Firebase service with proper error handling"""
-        if self._initialized:
-            return
-            
-        try:
-            # Get the Firebase app instance
-            self.app = firebase_admin.get_app()
-        self.db = firestore.client()
-            self._initialized = True
-            print("Firebase service initialized successfully")
-        except Exception as e:
-            print(f"Error initializing Firebase service: {str(e)}")
-            raise  # Re-raise the exception since Firebase is required
+        if not FirebaseService._initialized:
+            try:
+                # Initialize Firebase Admin SDK
+                print("Initializing Firebase Admin SDK...")
+                print("Initializing Firebase with credentials from environment variables...")
+                
+                # Get credentials from environment variables
+                cred = credentials.Certificate({
+                    "type": os.getenv("FIREBASE_TYPE"),
+                    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+                    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+                    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
+                    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+                    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+                    "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
+                    "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
+                    "auth_provider_x509_cert_url": os.getenv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL"),
+                    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL")
+                })
+                
+                # Initialize the app
+                self.app = firebase_admin.initialize_app(cred)
+                print("Firebase Admin SDK initialized successfully")
+                
+                # Initialize Firestore client
+                self.db = firestore.client()
+                print("Firestore client initialized successfully")
+                FirebaseService._initialized = True
+                
+            except Exception as e:
+                print(f"Error initializing Firebase: {str(e)}")
+                self.app = None
+                self.db = None
+                raise
 
     def _ensure_db(self):
         """Ensure database connection is available"""
@@ -244,42 +266,40 @@ class FirebaseService:
             ]
             
             try:
-            # Get tutor's existing bookings for this date
-            booked_slots = []
-            sessions_ref = self.db.collection('sessions')
+                # Get tutor's existing bookings for this date
+                booked_slots = []
+                sessions_ref = self.db.collection('sessions')
                 query = sessions_ref.where('tutor_id', '==', str(tutor_id)) \
                                .where('date', '==', date_str) \
                                .where('status', '==', 'Scheduled')
-            
+                
                 print(f"DEBUG: Querying for booked slots with tutor_id={tutor_id}, date={date_str}")
                 
-            for doc in query.stream():
-                session_data = doc.to_dict()
+                for doc in query.stream():
+                    session_data = doc.to_dict()
                     start_time = session_data.get('start_time')
                     end_time = session_data.get('end_time')
                     if start_time and end_time:
                         time_slot = f"{start_time} - {end_time}"
-                booked_slots.append(time_slot)
+                        booked_slots.append(time_slot)
                         print(f"DEBUG: Found booked slot: {time_slot}")
-            
-            # Filter out booked slots
-            available_slots = [slot for slot in all_time_slots if slot not in booked_slots]
+                
+                # Filter out booked slots
+                available_slots = [slot for slot in all_time_slots if slot not in booked_slots]
                 print(f"DEBUG: Available slots after filtering: {available_slots}")
                 
-            return available_slots
-            
+                return available_slots
+                
             except Exception as db_error:
                 print(f"ERROR: Database query failed: {str(db_error)}")
                 import traceback
                 print(f"DEBUG: Traceback: {traceback.format_exc()}")
-                # Return demo slots as fallback
                 return ["09:00 - 10:00", "11:00 - 12:00", "14:00 - 15:00"]
                 
         except Exception as e:
             print(f"ERROR: Unexpected error in get_tutor_schedule: {str(e)}")
             import traceback
             print(f"DEBUG: Traceback: {traceback.format_exc()}")
-            # Return demo slots as fallback
             return ["09:00 - 10:00", "11:00 - 12:00", "14:00 - 15:00"]
 
     # Module management operations
@@ -313,16 +333,16 @@ class FirebaseService:
         """Get all tutors assigned to a specific module"""
         try:
             print(f"DEBUG: Getting tutors for module {module_code}")
-        
+            
             # Query for module-tutor assignments
             print(f"DEBUG: Querying module_tutors collection for module {module_code}")
             assignments = self.db.collection('module_tutors').where('module_code', '==', str(module_code)).stream()
             
             tutors = []
-        for assignment in assignments:
+            for assignment in assignments:
                 try:
-            assignment_data = assignment.to_dict()
-            tutor_id = assignment_data.get('tutor_id')
+                    assignment_data = assignment.to_dict()
+                    tutor_id = assignment_data.get('tutor_id')
                     print(f"DEBUG: Found tutor assignment for tutor_id: {tutor_id}")
                     
                     if not tutor_id:
@@ -331,15 +351,15 @@ class FirebaseService:
                         
                     # Get tutor details
                     tutor = self.get_user_by_id(tutor_id)
-            if tutor:
-                tutors.append({
-                    'assignment_id': assignment.id,
-                    'id': tutor_id,
-                    'tutor_id': tutor_id,
+                    if tutor:
+                        tutors.append({
+                            'assignment_id': assignment.id,
+                            'id': tutor_id,
+                            'tutor_id': tutor_id,
                             'name': tutor.get('name', 'Unknown Tutor'),
                             'email': tutor.get('email', ''),
-                    'assigned_at': assignment_data.get('assigned_at')
-                })
+                            'assigned_at': assignment_data.get('assigned_at')
+                        })
                         print(f"DEBUG: Added tutor {tutor.get('name')} to results")
                     else:
                         print(f"WARNING: Could not find tutor with ID {tutor_id}")
@@ -351,7 +371,7 @@ class FirebaseService:
                     continue
             
             print(f"DEBUG: Returning {len(tutors)} tutors found")
-        return tutors
+            return tutors
             
         except Exception as e:
             print(f"ERROR in get_module_tutors: {str(e)}")
@@ -597,7 +617,7 @@ class FirebaseService:
         
     def _get_demo_user(self, user_id):
         """Return demo user for fallback"""
-            return {
+        return {
             'id': user_id,
             'name': 'Demo User',
             'email': 'demo@example.com',
@@ -1379,7 +1399,7 @@ class FirebaseService:
                     # Format time slot string
                     booking["time_slot"] = f"{booking['start_time']} - {booking['end_time']}"
                     
-        except Exception as e:
+                except Exception as e:
                     print(f"Error retrieving related data for booking: {e}")
                     booking["student_name"] = "Unknown Student"
                     booking["tutor_name"] = "Unknown Tutor"
@@ -1401,7 +1421,7 @@ class FirebaseService:
                             availability["available_slots"].remove(time_slot)
                             availability_ref.update({"available_slots": availability["available_slots"]})
                             print(f"Removed booked slot {time_slot} from {booking['tutor_id']}'s availability on {booking['date']}")
-        except Exception as e:
+                except Exception as e:
                     print(f"Error updating tutor availability: {e}")
             
             return True
