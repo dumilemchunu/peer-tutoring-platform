@@ -1436,15 +1436,15 @@ class FirebaseService:
 
     def get_tutor_applications(self):
         """
-        Get all pending tutor applications
+        Get all pending tutor applications with user details
         
         Returns:
-            list: List of tutor applications
+            list: List of tutor applications with user information
         """
         try:
             applications = []
             # Get all pending applications
-            docs = self.db.collection('tutor_applications').where('status', '==', 'Pending').get()
+            docs = self.db.collection('tutor_applications').where('status', '==', 'Pending').stream()
             
             for doc in docs:
                 app_data = doc.to_dict()
@@ -1459,17 +1459,28 @@ class FirebaseService:
                         user_data = user.to_dict()
                         app_data.update({
                             'name': user_data.get('name', 'Unknown'),
-                            'email': user_data.get('email', 'No email')
+                            'email': user_data.get('email', 'No email'),
+                            'staff_number': user_data.get('staff_number', 'Not provided'),
+                            'student_number': user_data.get('student_number', 'Not provided')
+                        })
+                    else:
+                        print(f"User not found for application {doc.id}")
+                        app_data.update({
+                            'name': 'Unknown User',
+                            'email': 'No email',
+                            'staff_number': 'Not found',
+                            'student_number': 'Not found'
                         })
                 
                 # Convert timestamps to datetime objects
                 if 'created_at' in app_data and app_data['created_at']:
-                    app_data['created_at'] = app_data['created_at'].datetime
+                    app_data['created_at'] = app_data['created_at'].datetime()
                 
                 applications.append(app_data)
             
             # Sort by creation date, newest first
             applications.sort(key=lambda x: x.get('created_at', datetime.min), reverse=True)
+            print(f"Retrieved {len(applications)} tutor applications")
             return applications
             
         except Exception as e:
@@ -1490,17 +1501,36 @@ class FirebaseService:
                 
                 # Add default values for required fields if missing
                 user_data.setdefault('name', 'Unknown User')
-                user_data.setdefault('email', '')
+                user_data.setdefault('email', 'No email')
                 user_data.setdefault('role', 'student')
-                user_data.setdefault('created_at', '')
+                user_data.setdefault('is_verified', False)
+                user_data.setdefault('student_number', '')
+                user_data.setdefault('staff_number', '')
+                user_data.setdefault('created_at', firestore.SERVER_TIMESTAMP)
+                
+                # Convert timestamps to datetime objects
+                if isinstance(user_data['created_at'], firestore.SERVER_TIMESTAMP.__class__):
+                    user_data['created_at'] = datetime.now()
+                elif hasattr(user_data['created_at'], 'datetime'):
+                    user_data['created_at'] = user_data['created_at'].datetime()
+                
+                # Add additional fields for tutors
+                if user_data['role'] == 'tutor':
+                    user_data.setdefault('approved_modules', [])
+                    user_data.setdefault('qualifications', '')
+                    user_data.setdefault('tutor_since', None)
                 
                 users.append(user_data)
             
             # Sort users by creation date (newest first)
-            return sorted(users, key=lambda x: x.get('created_at', ''), reverse=True)
+            users.sort(key=lambda x: x.get('created_at', datetime.min), reverse=True)
+            print(f"Retrieved {len(users)} users from database")
+            return users
             
         except Exception as e:
             print(f"Error getting all users: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return []
 
     def approve_tutor_application(self, application_id):
