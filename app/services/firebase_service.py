@@ -1,8 +1,10 @@
-from firebase_admin import firestore
+import firebase_admin
+from firebase_admin import credentials, firestore
 from datetime import datetime, timedelta
 import uuid
 import base64
 from app.utils.date_utils import parse_date
+from typing import Dict, List, Optional, Tuple, Any
 
 class FirebaseService:
     def __init__(self):
