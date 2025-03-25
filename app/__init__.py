@@ -17,47 +17,36 @@ try:
         service_account_paths = [
             'service-account.json',  # Project root
             '/opt/render/project/src/service-account.json',  # Render project path
+            '/etc/secrets/service-account.json',  # Render secrets path
         ]
         
-        cred = None
+        print("Searching for Firebase credentials file...")
         for path in service_account_paths:
+            print(f"Checking path: {path}")
             if os.path.exists(path):
-                print(f"Using Firebase credentials from: {path}")
+                print(f"FOUND Firebase credentials at: {path}")
                 cred = credentials.Certificate(path)
+                firebase_app = firebase_admin.initialize_app(cred)
+                print(f"Firebase Admin SDK initialized successfully with credentials from {path}")
                 break
-                
-        if cred is None:
-            print("WARNING: No service account file found. Using demo mode.")
-            # Initialize with NO credentials for demo mode
-            firebase_app = firebase_admin.initialize_app(options={
-                'projectId': 'demo-project',
-                'databaseURL': 'https://demo-project.firebaseio.com',
-                'storageBucket': 'demo-project.appspot.com'
-            })
-            # Set demo mode flag
-            os.environ['DEMO_MODE'] = 'True'
         else:
-            # Initialize with proper credentials
-            firebase_app = firebase_admin.initialize_app(cred)
-            
-        print("Firebase Admin SDK initialized successfully")
+            # This runs if no break occurs in the for loop - no credentials found
+            print("ERROR: No Firebase credentials found at any of the expected locations:")
+            for path in service_account_paths:
+                print(f" - {path}")
+            raise FileNotFoundError("Firebase credentials file not found. Please ensure service-account.json is properly uploaded.")
     else:
         firebase_app = firebase_admin.get_app()
         print("Using existing Firebase app")
         
-    # Initialize Firestore - but handle errors specifically here
-    try:
-        db = firestore.client()
-        print("Firestore client initialized successfully")
-    except Exception as e:
-        print(f"WARNING: Could not initialize Firestore client, using demo mode: {e}")
-        db = None  # No Firestore client available, app should use demo data
+    # Initialize Firestore client
+    db = firestore.client()
+    print("Firestore client initialized successfully")
 except Exception as e:
-    print(f"ERROR initializing Firebase: {str(e)}")
+    print(f"CRITICAL ERROR initializing Firebase: {str(e)}")
     print(f"Detailed error: {traceback.format_exc()}")
-    # Continue with app initialization but set flags for services to handle gracefully
-    firebase_app = None
-    db = None
+    # Don't swallow the exception - we need Firebase to work
+    raise
 
 # Initialize Flask-Login
 login_manager = LoginManager()
