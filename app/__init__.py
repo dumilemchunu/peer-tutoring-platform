@@ -13,22 +13,27 @@ db = None
 try:
     # Check if Firebase is already initialized
     if not firebase_admin._apps:
-        # Check if running on Render (production)
-        if os.environ.get('RENDER'):
-            # Use JSON string from environment variable on Render
-            firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS')
-            if firebase_creds_json:
-                import json
-                cred_dict = json.loads(firebase_creds_json)
-                cred = credentials.Certificate(cred_dict)
-            else:
-                # Fallback to service account file if no env var
-                cred = credentials.Certificate('service-account.json')
-        else:
-            # Development mode - use service account file
-            cred = credentials.Certificate('service-account.json')
+        # For Render deployment - check for service account file in expected locations
+        service_account_paths = [
+            'service-account.json',  # Project root
+            '/opt/render/project/src/service-account.json',  # Render project path
+        ]
         
-        firebase_app = firebase_admin.initialize_app(cred)
+        cred = None
+        for path in service_account_paths:
+            if os.path.exists(path):
+                print(f"Using Firebase credentials from: {path}")
+                cred = credentials.Certificate(path)
+                break
+                
+        if cred is None:
+            print("WARNING: No service account file found. Firebase services will not be available.")
+            # Initialize with minimal config to avoid crashes
+            firebase_app = firebase_admin.initialize_app(options={'databaseURL': 'https://demo-project.firebaseio.com'})
+        else:
+            # Initialize with proper credentials
+            firebase_app = firebase_admin.initialize_app(cred)
+            
         print("Firebase Admin SDK initialized successfully")
     else:
         firebase_app = firebase_admin.get_app()
