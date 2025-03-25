@@ -7,12 +7,24 @@ from app.utils.date_utils import parse_date
 from typing import Dict, List, Optional, Tuple, Any
 
 class FirebaseService:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(FirebaseService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
         """Initialize Firebase service with proper error handling"""
+        if self._initialized:
+            return
+            
         try:
             # Get the Firebase app instance
             self.app = firebase_admin.get_app()
             self.db = firestore.client()
+            self._initialized = True
             print("Firebase service initialized successfully")
         except Exception as e:
             print(f"Error initializing Firebase service: {str(e)}")
