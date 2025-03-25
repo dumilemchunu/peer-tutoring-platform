@@ -24,8 +24,27 @@ class FirebaseService:
                 print("Initializing Firebase with credentials from environment variables...")
                 
                 # Get credentials from environment variables
+                required_fields = [
+                    "FIREBASE_TYPE",
+                    "FIREBASE_PROJECT_ID",
+                    "FIREBASE_PRIVATE_KEY_ID",
+                    "FIREBASE_PRIVATE_KEY",
+                    "FIREBASE_CLIENT_EMAIL",
+                    "FIREBASE_CLIENT_ID",
+                    "FIREBASE_AUTH_URI",
+                    "FIREBASE_TOKEN_URI",
+                    "FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
+                    "FIREBASE_CLIENT_X509_CERT_URL"
+                ]
+                
+                # Check for missing environment variables
+                missing_fields = [field for field in required_fields if not os.getenv(field)]
+                if missing_fields:
+                    raise ValueError(f"Missing required environment variables: {', '.join(missing_fields)}")
+                
+                # Create credentials dictionary with explicit type field
                 cred = credentials.Certificate({
-                    "type": os.getenv("FIREBASE_TYPE"),
+                    "type": "service_account",  # Explicitly set type
                     "project_id": os.getenv("FIREBASE_PROJECT_ID"),
                     "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
                     "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
