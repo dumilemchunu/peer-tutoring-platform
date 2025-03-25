@@ -23,7 +23,7 @@ class FirebaseService:
         try:
             # Get the Firebase app instance
             self.app = firebase_admin.get_app()
-            self.db = firestore.client()
+        self.db = firestore.client()
             self._initialized = True
             print("Firebase service initialized successfully")
         except Exception as e:
@@ -107,7 +107,7 @@ class FirebaseService:
                 if not end_time: missing.append("end_time")
                 print(f"ERROR: Missing required fields: {', '.join(missing)}")
                 return None
-            
+
             # Check if the slot is still available
             try:
                 available_slots = self.get_tutor_schedule(tutor_id, date_obj)
@@ -120,7 +120,7 @@ class FirebaseService:
                 print(f"ERROR: Failed to verify slot availability: {e}")
                 return None
             
-            # Create the session document
+                # Create the session document
             try:
                 session_ref = self.db.collection('sessions').document()
                 
@@ -162,7 +162,7 @@ class FirebaseService:
                 except Exception as notif_error:
                     print(f"WARNING: Failed to create notifications: {notif_error}")
                     # Continue even if notifications fail
-                
+                    
                 print(f"DEBUG: Booking created successfully with ID: {session_ref.id}")
                 return session_ref.id
                 
@@ -171,7 +171,7 @@ class FirebaseService:
                 import traceback
                 print(f"DEBUG: Traceback: {traceback.format_exc()}")
                 return None
-            
+                
         except Exception as e:
             print(f"ERROR: Unexpected error in create_booking: {e}")
             import traceback
@@ -186,7 +186,7 @@ class FirebaseService:
             
             if not module_doc.exists:
                 print(f"Module {module_code} not found")
-                return None
+            return None
                 
             module_data = module_doc.to_dict()
             module_data['code'] = module_code  # Ensure code is included in the data
@@ -244,30 +244,30 @@ class FirebaseService:
             ]
             
             try:
-                # Get tutor's existing bookings for this date
-                booked_slots = []
-                sessions_ref = self.db.collection('sessions')
+            # Get tutor's existing bookings for this date
+            booked_slots = []
+            sessions_ref = self.db.collection('sessions')
                 query = sessions_ref.where('tutor_id', '==', str(tutor_id)) \
-                                   .where('date', '==', date_str) \
-                                   .where('status', '==', 'Scheduled')
-                
+                               .where('date', '==', date_str) \
+                               .where('status', '==', 'Scheduled')
+            
                 print(f"DEBUG: Querying for booked slots with tutor_id={tutor_id}, date={date_str}")
                 
-                for doc in query.stream():
-                    session_data = doc.to_dict()
+            for doc in query.stream():
+                session_data = doc.to_dict()
                     start_time = session_data.get('start_time')
                     end_time = session_data.get('end_time')
                     if start_time and end_time:
                         time_slot = f"{start_time} - {end_time}"
-                        booked_slots.append(time_slot)
+                booked_slots.append(time_slot)
                         print(f"DEBUG: Found booked slot: {time_slot}")
-                
-                # Filter out booked slots
-                available_slots = [slot for slot in all_time_slots if slot not in booked_slots]
+            
+            # Filter out booked slots
+            available_slots = [slot for slot in all_time_slots if slot not in booked_slots]
                 print(f"DEBUG: Available slots after filtering: {available_slots}")
                 
-                return available_slots
-                
+            return available_slots
+            
             except Exception as db_error:
                 print(f"ERROR: Database query failed: {str(db_error)}")
                 import traceback
@@ -313,16 +313,16 @@ class FirebaseService:
         """Get all tutors assigned to a specific module"""
         try:
             print(f"DEBUG: Getting tutors for module {module_code}")
-            
+        
             # Query for module-tutor assignments
             print(f"DEBUG: Querying module_tutors collection for module {module_code}")
             assignments = self.db.collection('module_tutors').where('module_code', '==', str(module_code)).stream()
             
             tutors = []
-            for assignment in assignments:
+        for assignment in assignments:
                 try:
-                    assignment_data = assignment.to_dict()
-                    tutor_id = assignment_data.get('tutor_id')
+            assignment_data = assignment.to_dict()
+            tutor_id = assignment_data.get('tutor_id')
                     print(f"DEBUG: Found tutor assignment for tutor_id: {tutor_id}")
                     
                     if not tutor_id:
@@ -331,15 +331,15 @@ class FirebaseService:
                         
                     # Get tutor details
                     tutor = self.get_user_by_id(tutor_id)
-                    if tutor:
-                        tutors.append({
-                            'assignment_id': assignment.id,
-                            'id': tutor_id,
-                            'tutor_id': tutor_id,
+            if tutor:
+                tutors.append({
+                    'assignment_id': assignment.id,
+                    'id': tutor_id,
+                    'tutor_id': tutor_id,
                             'name': tutor.get('name', 'Unknown Tutor'),
                             'email': tutor.get('email', ''),
-                            'assigned_at': assignment_data.get('assigned_at')
-                        })
+                    'assigned_at': assignment_data.get('assigned_at')
+                })
                         print(f"DEBUG: Added tutor {tutor.get('name')} to results")
                     else:
                         print(f"WARNING: Could not find tutor with ID {tutor_id}")
@@ -351,7 +351,7 @@ class FirebaseService:
                     continue
             
             print(f"DEBUG: Returning {len(tutors)} tutors found")
-            return tutors
+        return tutors
             
         except Exception as e:
             print(f"ERROR in get_module_tutors: {str(e)}")
@@ -597,7 +597,7 @@ class FirebaseService:
         
     def _get_demo_user(self, user_id):
         """Return demo user for fallback"""
-        return {
+            return {
             'id': user_id,
             'name': 'Demo User',
             'email': 'demo@example.com',
@@ -1379,7 +1379,7 @@ class FirebaseService:
                     # Format time slot string
                     booking["time_slot"] = f"{booking['start_time']} - {booking['end_time']}"
                     
-                except Exception as e:
+        except Exception as e:
                     print(f"Error retrieving related data for booking: {e}")
                     booking["student_name"] = "Unknown Student"
                     booking["tutor_name"] = "Unknown Tutor"
@@ -1401,7 +1401,7 @@ class FirebaseService:
                             availability["available_slots"].remove(time_slot)
                             availability_ref.update({"available_slots": availability["available_slots"]})
                             print(f"Removed booked slot {time_slot} from {booking['tutor_id']}'s availability on {booking['date']}")
-                except Exception as e:
+        except Exception as e:
                     print(f"Error updating tutor availability: {e}")
             
             return True
@@ -1441,4 +1441,29 @@ class FirebaseService:
             
         except Exception as e:
             print(f"Error getting tutor applications: {str(e)}")
+            return []
+
+    def get_all_users(self):
+        """Get all users with their roles and details"""
+        try:
+            users = []
+            users_ref = self.db.collection('users')
+            
+            for doc in users_ref.stream():
+                user_data = doc.to_dict()
+                user_data['id'] = doc.id  # Add document ID as user ID
+                
+                # Add default values for required fields if missing
+                user_data.setdefault('name', 'Unknown User')
+                user_data.setdefault('email', '')
+                user_data.setdefault('role', 'student')
+                user_data.setdefault('created_at', '')
+                
+                users.append(user_data)
+            
+            # Sort users by creation date (newest first)
+            return sorted(users, key=lambda x: x.get('created_at', ''), reverse=True)
+            
+        except Exception as e:
+            print(f"Error getting all users: {str(e)}")
             return [] 
