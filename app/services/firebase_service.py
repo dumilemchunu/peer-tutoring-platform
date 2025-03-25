@@ -1408,4 +1408,37 @@ class FirebaseService:
             
         except Exception as e:
             print(f"Error seeding bookings: {str(e)}")
-            return False 
+            return False
+
+    def get_tutor_applications(self):
+        """Get all tutor applications with their status"""
+        try:
+            # Query for tutor applications
+            applications_ref = self.db.collection('tutor_applications')
+            applications = []
+            
+            for doc in applications_ref.stream():
+                app_data = doc.to_dict()
+                # Get user details
+                user_id = app_data.get('user_id')
+                user_data = self.get_user_by_id(user_id) if user_id else None
+                
+                applications.append({
+                    'id': doc.id,
+                    'user_id': user_id,
+                    'user_name': user_data.get('name', 'Unknown User') if user_data else 'Unknown User',
+                    'email': user_data.get('email', '') if user_data else '',
+                    'status': app_data.get('status', 'Pending'),
+                    'submitted_at': app_data.get('submitted_at'),
+                    'qualifications': app_data.get('qualifications', ''),
+                    'experience': app_data.get('experience', ''),
+                    'modules': app_data.get('modules', []),
+                    'notes': app_data.get('notes', '')
+                })
+            
+            # Sort by submission date (newest first)
+            return sorted(applications, key=lambda x: x.get('submitted_at', ''), reverse=True)
+            
+        except Exception as e:
+            print(f"Error getting tutor applications: {str(e)}")
+            return [] 
