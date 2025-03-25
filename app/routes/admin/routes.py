@@ -4,6 +4,7 @@ from app.models import User
 from app.services.firebase_service import FirebaseService
 from firebase_admin import auth, firestore
 from functools import wraps
+from datetime import datetime
 
 admin_bp = Blueprint('admin', __name__)
 firebase_service = FirebaseService()
@@ -124,21 +125,39 @@ def reject_tutor(application_id):
 @login_required
 @admin_required
 def users():
-    if not current_user.is_admin:
-        flash('Access denied. You must be an administrator to view this page.', 'error')
-        return redirect(url_for('main.index'))
-    
-    # Get all users
-    all_users = firebase_service.get_all_users()
-    
-    # Filter by role if specified
-    role_filter = request.args.get('role')
-    if role_filter:
-        users = [user for user in all_users if user.get('role') == role_filter]
-    else:
-        users = all_users
-    
-    return render_template('admin/users.html', users=users, role_filter=role_filter)
+    """Display all users in the system"""
+    try:
+        print("Fetching users for admin dashboard...")
+        users_data = firebase_service.get_all_users()
+        print(f"Retrieved {len(users_data)} users from Firebase")
+        
+        # Process users for display
+        for user in users_data:
+            # Format timestamps
+            if user.get('created_at'):
+                if isinstance(user['created_at'], datetime):
+                    user['created_at'] = user['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                user['created_at'] = 'N/A'
+                
+            # Ensure role is displayed properly
+            user['role'] = user.get('role', 'student').capitalize()
+            
+            # Format verification status
+            user['is_verified'] = 'Yes' if user.get('is_verified', False) else 'No'
+            
+            # Handle missing fields
+            user.setdefault('student_number', 'N/A')
+            user.setdefault('staff_number', 'N/A')
+            
+        return render_template('admin/users.html', users=users_data)
+        
+    except Exception as e:
+        print(f"Error in users route: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        flash('Error loading users. Please try again.', 'error')
+        return render_template('admin/users.html', users=[])
 
 @admin_bp.route('/users/<user_id>')
 @login_required

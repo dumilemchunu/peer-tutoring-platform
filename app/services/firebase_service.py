@@ -1492,39 +1492,56 @@ class FirebaseService:
     def get_all_users(self):
         """Get all users with their roles and details"""
         try:
+            print("Starting to fetch users from Firebase...")
             users = []
             users_ref = self.db.collection('users')
             
-            for doc in users_ref.stream():
-                user_data = doc.to_dict()
-                user_data['id'] = doc.id  # Add document ID as user ID
-                
-                # Add default values for required fields if missing
-                user_data.setdefault('name', 'Unknown User')
-                user_data.setdefault('email', 'No email')
-                user_data.setdefault('role', 'student')
-                user_data.setdefault('is_verified', False)
-                user_data.setdefault('student_number', '')
-                user_data.setdefault('staff_number', '')
-                user_data.setdefault('created_at', firestore.SERVER_TIMESTAMP)
-                
-                # Convert timestamps to datetime objects
-                if isinstance(user_data['created_at'], firestore.SERVER_TIMESTAMP.__class__):
-                    user_data['created_at'] = datetime.now()
-                elif hasattr(user_data['created_at'], 'datetime'):
-                    user_data['created_at'] = user_data['created_at'].datetime()
-                
-                # Add additional fields for tutors
-                if user_data['role'] == 'tutor':
-                    user_data.setdefault('approved_modules', [])
-                    user_data.setdefault('qualifications', '')
-                    user_data.setdefault('tutor_since', None)
-                
-                users.append(user_data)
+            # Get all users
+            docs = users_ref.stream()
+            print("Successfully connected to users collection")
+            
+            for doc in docs:
+                try:
+                    print(f"Processing user document: {doc.id}")
+                    user_data = doc.to_dict()
+                    if not user_data:
+                        print(f"Warning: Empty user data for document {doc.id}")
+                        continue
+                        
+                    # Add the document ID to the data
+                    user_data['id'] = doc.id
+                    
+                    # Add default values for required fields if missing
+                    user_data.setdefault('name', 'Unknown User')
+                    user_data.setdefault('email', 'No email')
+                    user_data.setdefault('role', 'student')
+                    user_data.setdefault('is_verified', False)
+                    user_data.setdefault('student_number', '')
+                    user_data.setdefault('staff_number', '')
+                    
+                    # Handle created_at timestamp
+                    if 'created_at' not in user_data or not user_data['created_at']:
+                        user_data['created_at'] = datetime.now()
+                    elif isinstance(user_data['created_at'], (firestore.SERVER_TIMESTAMP.__class__, type(None))):
+                        user_data['created_at'] = datetime.now()
+                    elif hasattr(user_data['created_at'], 'datetime'):
+                        user_data['created_at'] = user_data['created_at'].datetime()
+                    
+                    # Add additional fields for tutors
+                    if user_data.get('role') == 'tutor':
+                        user_data.setdefault('approved_modules', [])
+                        user_data.setdefault('qualifications', '')
+                        user_data.setdefault('tutor_since', None)
+                    
+                    print(f"Successfully processed user: {user_data.get('email', 'No email')}")
+                    users.append(user_data)
+                except Exception as e:
+                    print(f"Error processing user document {doc.id}: {str(e)}")
+                    continue
             
             # Sort users by creation date (newest first)
             users.sort(key=lambda x: x.get('created_at', datetime.min), reverse=True)
-            print(f"Retrieved {len(users)} users from database")
+            print(f"Successfully retrieved {len(users)} users from database")
             return users
             
         except Exception as e:
