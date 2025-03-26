@@ -105,7 +105,8 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('auth.sign_up') }}" enctype="multipart/form-data" id="signupForm">
+        <!-- Plain HTML form with absolute URL -->
+        <form method="POST" action="/sign-up" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="name">Full Name</label>
                 <input type="text" id="name" name="name" required>
@@ -118,7 +119,7 @@
 
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" required minlength="6">
             </div>
 
             <div class="form-group">
@@ -129,6 +130,7 @@
                 </select>
             </div>
 
+            <!-- Student fields -->
             <div id="student-fields">
                 <div class="form-group">
                     <label for="student_number">Student Number</label>
@@ -141,6 +143,7 @@
                 </div>
             </div>
 
+            <!-- Tutor fields -->
             <div id="tutor-fields" style="display: none;">
                 <div class="form-group">
                     <label for="staff_number">Staff/Student Number</label>
@@ -159,13 +162,13 @@
                 
                 <div class="form-group">
                     <label for="academic_record">Academic Record (PDF)</label>
-                    <input type="file" id="academic_record" name="academic_record" accept=".pdf" required>
+                    <input type="file" id="academic_record" name="academic_record" accept=".pdf">
                     <small class="form-text text-muted">Please upload your academic record as a PDF file</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="cv">CV (PDF)</label>
-                    <input type="file" id="cv" name="cv" accept=".pdf" required>
+                    <input type="file" id="cv" name="cv" accept=".pdf">
                     <small class="form-text text-muted">Please upload your CV as a PDF file</small>
                 </div>
                 
@@ -179,7 +182,8 @@
                 </div>
             </div>
 
-            <button type="submit" id="submitBtn" style="width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">Sign Up</button>
+            <!-- Standard submit button -->
+            <input type="submit" value="Sign Up" style="width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold;">
         </form>
 
         <div class="login-link">
@@ -188,43 +192,25 @@
     </div>
 
     <script>
-        // Toggle fields based on role selection
+        // Simple function to toggle fields based on role selection
         function toggleRoleFields() {
-            const role = document.getElementById('role').value;
-            const studentFields = document.getElementById('student-fields');
-            const tutorFields = document.getElementById('tutor-fields');
+            var role = document.getElementById('role').value;
+            var studentFields = document.getElementById('student-fields');
+            var tutorFields = document.getElementById('tutor-fields');
             
             if (role === 'student') {
                 studentFields.style.display = 'block';
                 tutorFields.style.display = 'none';
-                document.getElementById('student_number').required = false;
-                document.getElementById('staff_number').required = false;
-            } else if (role === 'tutor') {
+            } else {
                 studentFields.style.display = 'none';
                 tutorFields.style.display = 'block';
-                document.getElementById('student_number').required = false;
-                document.getElementById('staff_number').required = true;
             }
         }
         
-        // Initialize on page load
+        // Set initial state and add change handler
         document.addEventListener('DOMContentLoaded', function() {
             toggleRoleFields();
-            
-            // Log submission for debugging
-            document.getElementById('signupForm').addEventListener('submit', function(e) {
-                console.log('Form submitted');
-                // Form will submit naturally - no need to prevent default
-            });
-            
-            // Add direct click handler to button as fallback
-            document.getElementById('submitBtn').addEventListener('click', function(e) {
-                console.log('Submit button clicked');
-                // Only trigger manual submission if not part of a normal form submit
-                if (e.target.form && !e.target.form.reportValidity()) {
-                    e.preventDefault();
-                }
-            });
+            document.getElementById('role').addEventListener('change', toggleRoleFields);
         });
     </script>
 </body>

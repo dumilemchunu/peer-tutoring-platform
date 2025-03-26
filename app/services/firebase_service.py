@@ -847,60 +847,76 @@ class FirebaseService:
             return 0
 
     def get_system_statistics(self):
-        """Return system statistics for admin dashboard"""
+        """
+        Get system statistics for the admin dashboard
+        
+        Returns:
+            dict: System statistics
+        """
         try:
-            stats = {}
+            # Count active students
+            student_query = self.db.collection('users').where('role', '==', 'student').where('is_verified', '==', True)
+            student_count = len(list(student_query.stream()))
             
-            # Count users by role
-            users_ref = self.db.collection('users')
-            all_users = list(users_ref.stream())
-            stats['total_users'] = len(all_users)
-            
-            # Count by role
-            users_by_role = {'student': 0, 'tutor': 0, 'admin': 0}
-            for user in all_users:
-                user_data = user.to_dict()
-                role = user_data.get('role', 'unknown')
-                if role in users_by_role:
-                    users_by_role[role] += 1
-            
-            stats['total_students'] = users_by_role['student']
-            stats['total_tutors'] = users_by_role['tutor']
-            stats['total_admins'] = users_by_role['admin']
-            
-            # Count sessions
-            sessions_ref = self.db.collection('sessions')
-            stats['total_sessions'] = len(list(sessions_ref.stream()))
+            # Count active tutors
+            tutor_query = self.db.collection('users').where('role', '==', 'tutor').where('is_verified', '==', True)
+            tutor_count = len(list(tutor_query.stream()))
             
             # Count modules
-            modules_ref = self.db.collection('modules')
-            stats['total_modules'] = len(list(modules_ref.stream()))
+            modules_query = self.db.collection('modules')
+            module_count = len(list(modules_query.stream()))
             
-            # Estimate active users (sessions in the last 30 days)
-            thirty_days_ago = (datetime.now() - timedelta(days=30)).isoformat()
-            recent_sessions = list(sessions_ref.where('created_at', '>=', thirty_days_ago).stream())
-            active_user_ids = set()
-            for session in recent_sessions:
-                session_data = session.to_dict()
-                if 'student_id' in session_data:
-                    active_user_ids.add(session_data['student_id'])
-                if 'tutor_id' in session_data:
-                    active_user_ids.add(session_data['tutor_id'])
+            # Count pending tutor applications
+            pending_tutors_query = self.db.collection('tutor_applications').where('status', '==', 'pending')
+            pending_tutors_count = len(list(pending_tutors_query.stream()))
             
-            stats['active_users'] = len(active_user_ids)
+            # Count pending student applications
+            pending_students_query = self.db.collection('users').where('role', '==', 'student').where('is_verified', '==', False)
+            pending_students_count = len(list(pending_students_query.stream()))
             
-            return stats
+            # Count recent bookings (last 7 days)
+            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            recent_bookings_query = self.db.collection('sessions').where('created_at', '>=', seven_days_ago)
+            recent_bookings_count = len(list(recent_bookings_query.stream()))
+            
+            # Calculate total session hours
+            all_sessions_query = self.db.collection('sessions').where('status', '==', 'completed')
+            total_hours = 0
+            for session in all_sessions_query.stream():
+                data = session.to_dict()
+                # Extract hour from time slots like "14:00 - 15:00"
+                try:
+                    if 'time_slot' in data:
+                        start, end = data['time_slot'].split(' - ')
+                        start_hour = int(start.split(':')[0])
+                        end_hour = int(end.split(':')[0])
+                        session_duration = end_hour - start_hour
+                        if session_duration > 0:
+                            total_hours += session_duration
+                except Exception as e:
+                    print(f"Error calculating session hours: {str(e)}")
+                    continue
+            
+            return {
+                'student_count': student_count,
+                'tutor_count': tutor_count,
+                'module_count': module_count,
+                'pending_tutors_count': pending_tutors_count,
+                'pending_students_count': pending_students_count,
+                'recent_bookings_count': recent_bookings_count,
+                'total_hours': total_hours
+            }
             
         except Exception as e:
-            print(f"Error fetching system statistics: {str(e)}")
+            print(f"Error getting system statistics: {str(e)}")
             return {
-                'total_users': 0,
-                'total_students': 0,
-                'total_tutors': 0,
-                'total_admins': 0,
-                'total_sessions': 0,
-                'total_modules': 0,
-                'active_users': 0
+                'student_count': 0,
+                'tutor_count': 0,
+                'module_count': 0,
+                'pending_tutors_count': 0,
+                'pending_students_count': 0,
+                'recent_bookings_count': 0,
+                'total_hours': 0
             }
 
     # User management operations
@@ -2358,4 +2374,152 @@ class FirebaseService:
             
         except Exception as e:
             print(f"Error updating session status: {str(e)}")
+            return False
+
+    def get_student_applications(self):
+        """
+        Get all pending student applications
+        
+        Returns:
+            list: List of student applications
+        """
+        try:
+            if not self._ensure_db():
+                return []
+                
+            # Query for users with role='student' and is_verified=False
+            query = self.db.collection('users').where('role', '==', 'student').where('is_verified', '==', False)
+            
+            applications = []
+            docs = list(query.stream())
+            
+            for doc in docs:
+                application = doc.to_dict()
+                application['id'] = doc.id  # Add the document ID
+                applications.append(application)
+                
+            # Sort by creation date, newest first
+            applications.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+            
+            return applications
+            
+        except Exception as e:
+            print(f"Error getting student applications: {str(e)}")
+            return []
+
+    def approve_student_application(self, student_id):
+        """
+        Approve a student application
+        
+        Args:
+            student_id (str): The ID of the student to approve
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            if not self._ensure_db():
+                return False
+                
+            # Get the student document
+            student_ref = self.db.collection('users').document(student_id)
+            student_doc = student_ref.get()
+            
+            if not student_doc.exists:
+                print(f"Student {student_id} not found")
+                return False
+                
+            student_data = student_doc.to_dict()
+            
+            # Verify it's a student with pending status
+            if student_data.get('role') != 'student' or student_data.get('is_verified', True):
+                print(f"Invalid student application: {student_data}")
+                return False
+                
+            # Update the student document
+            student_ref.update({
+                'is_verified': True,
+                'student_status': 'approved',
+                'approved_at': firestore.SERVER_TIMESTAMP,
+            })
+            
+            # Create a notification for the student
+            student_email = student_data.get('email')
+            try:
+                self._create_notification(
+                    user_id=student_id,
+                    title="Student Account Approved",
+                    message="Your student account has been approved. You can now access the tutoring system.",
+                    type="account",
+                    reference_id=student_id
+                )
+            except Exception as notif_error:
+                print(f"Error creating notification: {str(notif_error)}")
+                
+            print(f"Approved student application for {student_email}")
+            return True
+            
+        except Exception as e:
+            print(f"Error approving student application: {str(e)}")
+            return False
+    
+    def reject_student_application(self, student_id, reason=''):
+        """
+        Reject a student application
+        
+        Args:
+            student_id (str): The ID of the student to reject
+            reason (str): The reason for rejection
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            if not self._ensure_db():
+                return False
+                
+            # Get the student document
+            student_ref = self.db.collection('users').document(student_id)
+            student_doc = student_ref.get()
+            
+            if not student_doc.exists:
+                print(f"Student {student_id} not found")
+                return False
+                
+            student_data = student_doc.to_dict()
+            
+            # Verify it's a student with pending status
+            if student_data.get('role') != 'student' or student_data.get('is_verified', True):
+                print(f"Invalid student application: {student_data}")
+                return False
+                
+            # Update the student document
+            student_ref.update({
+                'student_status': 'rejected',
+                'rejection_reason': reason,
+                'rejected_at': firestore.SERVER_TIMESTAMP,
+            })
+            
+            # Create a notification for the student
+            student_email = student_data.get('email')
+            try:
+                rejection_message = "Your student account application has been rejected."
+                if reason:
+                    rejection_message += f" Reason: {reason}"
+                
+                self._create_notification(
+                    user_id=student_id,
+                    title="Student Account Rejected",
+                    message=rejection_message,
+                    type="account",
+                    reference_id=student_id
+                )
+            except Exception as notif_error:
+                print(f"Error creating notification: {str(notif_error)}")
+                
+            print(f"Rejected student application for {student_email}")
+            return True
+            
+        except Exception as e:
+            print(f"Error rejecting student application: {str(e)}")
             return False

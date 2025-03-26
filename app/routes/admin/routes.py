@@ -439,4 +439,41 @@ def view_document(doc_id):
         return response
     except Exception as e:
         flash(f'Error displaying document: {str(e)}', 'error')
-        return redirect(url_for('admin.tutor_applications')) 
+        return redirect(url_for('admin.tutor_applications'))
+
+@admin_bp.route('/student-applications')
+@login_required
+@admin_required
+def student_applications():
+    """
+    Display all pending student applications
+    """
+    applications = firebase_service.get_student_applications()
+    return render_template('admin/student_applications.html', applications=applications)
+
+@admin_bp.route('/approve-student/<student_id>', methods=['POST'])
+@login_required
+@admin_required
+def approve_student(student_id):
+    """
+    Approve a student application
+    """
+    if firebase_service.approve_student_application(student_id):
+        flash('Student application approved successfully.', 'success')
+    else:
+        flash('Failed to approve student application. Please try again.', 'danger')
+    return redirect(url_for('admin.student_applications'))
+
+@admin_bp.route('/reject-student/<student_id>', methods=['POST'])
+@login_required
+@admin_required
+def reject_student(student_id):
+    """
+    Reject a student application
+    """
+    reason = request.form.get('reason', '')
+    if firebase_service.reject_student_application(student_id, reason):
+        flash('Student application rejected successfully.', 'success')
+    else:
+        flash('Failed to reject student application. Please try again.', 'danger')
+    return redirect(url_for('admin.student_applications')) 

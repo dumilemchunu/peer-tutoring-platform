@@ -259,6 +259,20 @@
             justify-content: center;
             font-weight: 600;
         }
+        
+        .app-count-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: rgba(67, 97, 238, 0.1);
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 auto;
+        }
     </style>
 </head>
 <body>
@@ -281,6 +295,11 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('admin.tutor_applications') }}">
                         <i class="bi bi-file-earmark-person"></i> Tutor Applications
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin.student_applications') }}">
+                        <i class="bi bi-person-check"></i> Student Applications
                     </a>
                 </li>
                 <li class="nav-item">
@@ -384,6 +403,33 @@
                 </div>
                 
                 <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5>Recent Student Applications</h5>
+                            <a href="{{ url_for('admin.student_applications') }}" class="btn btn-primary btn-sm">View All</a>
+                        </div>
+                        <div class="card-body">
+                            {% if stats.pending_students_count and stats.pending_students_count > 0 %}
+                                <div class="student-applications-summary">
+                                    <div class="text-center my-3">
+                                        <div class="app-count-circle">
+                                            <span>{{ stats.pending_students_count }}</span>
+                                        </div>
+                                        <h6 class="mt-3">Pending Student Applications</h6>
+                                        <p class="text-muted">Students waiting for account approval</p>
+                                        <a href="{{ url_for('admin.student_applications') }}" class="btn btn-primary">
+                                            Review Applications
+                                        </a>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <p class="text-center text-muted my-4">No pending student applications</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mt-4">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5>Available Modules</h5>
